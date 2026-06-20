@@ -1,0 +1,27 @@
+# LeakSanitizer suppressions for poxicle.
+#
+# Mesa's EGL/GL drivers allocate process-lifetime state during context setup and
+# never free it before exit. These show up under poxicle's egl_setup() call site
+# but the allocations are entirely inside the driver, not poxicle. Suppress them
+# so genuine poxicle leaks stand out.
+#
+# Usage:
+#   LSAN_OPTIONS=suppressions=lsan.supp build-asan/poxicle-host
+#
+# Each rule matches if the substring appears in any frame of the alloc stack.
+
+# EGL platform/driver loader
+leak:libEGL_mesa
+leak:libEGL.so
+leak:libGLX_mesa
+
+# Gallium / DRI hardware drivers (iris on Intel, plus the common others)
+leak:iris_dri
+leak:libgallium
+leak:swrast_dri
+leak:radeonsi
+leak:libglapi
+
+# Shared GLVND / DRI loader
+leak:libglvnd
+leak:libGLdispatch
