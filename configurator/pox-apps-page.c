@@ -361,8 +361,7 @@ pox_apps_page_new(PoxSavedCb cb, gpointer cb_data)
   }
 
   GtkWidget *inner = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-  gtk_widget_set_halign(inner, GTK_ALIGN_CENTER);   /* float the table in the window */
-  gtk_widget_set_valign(inner, GTK_ALIGN_CENTER);
+  gtk_widget_set_halign(inner, GTK_ALIGN_CENTER);   /* centre horizontally only */
   gtk_widget_set_margin_top(inner, 6);
   gtk_widget_set_margin_bottom(inner, 12);
   gtk_widget_set_margin_start(inner, 14);

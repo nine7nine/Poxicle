@@ -107,8 +107,7 @@ pox_presets_page_new(PoxSavedCb cb, gpointer cb_data)
 
   GtkWidget *grid = gtk_grid_new();
   gtk_widget_add_css_class(grid, "preset-row");
-  gtk_widget_set_halign(grid, GTK_ALIGN_CENTER);   /* float the table in the window */
-  gtk_widget_set_valign(grid, GTK_ALIGN_CENTER);
+  gtk_widget_set_halign(grid, GTK_ALIGN_CENTER);   /* centre horizontally only */
   gtk_grid_set_row_spacing(GTK_GRID(grid), 5);
   gtk_grid_set_column_spacing(GTK_GRID(grid), 8);
   gtk_widget_set_margin_top(grid, 14);
