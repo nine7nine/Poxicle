@@ -466,6 +466,13 @@ static double proc_duration_ms(int kind, double spd)
   case POX_KIND_SPINNER:   return 2600.0 / spd;
   case POX_KIND_RIPPLE:    return 2000.0 / spd;
   case POX_KIND_CHARGE:    return 2400.0 / spd;
+  case POX_KIND_SPREAD:    return 1500.0 / spd;   /* fast volley cadence */
+  case POX_KIND_RADAR:     return 4000.0 / spd;
+  case POX_KIND_COUNTERSPIN: return 5000.0 / spd;
+  case POX_KIND_SNAKE:     return 5000.0 / spd;
+  case POX_KIND_BREATHE:   return 3600.0 / spd;   /* slow breath */
+  case POX_KIND_STROBE:    return 2000.0 / spd;
+  case POX_KIND_FIREFLIES: return 4000.0 / spd;
   default:                 return 3000.0 / spd;
   }
 }
@@ -489,7 +496,11 @@ void pox_engine_set_kind(PoxEngine *e, PoxKind kind, int reverse, PoxColor color
                          kind == POX_KIND_ROTATE   || kind == POX_KIND_PING_PONG ||
                          kind == POX_KIND_LASER    || kind == POX_KIND_TRACER    ||
                          kind == POX_KIND_COMET    || kind == POX_KIND_SPINNER   ||
-                         kind == POX_KIND_RIPPLE   || kind == POX_KIND_CHARGE);
+                         kind == POX_KIND_RIPPLE   || kind == POX_KIND_CHARGE    ||
+                         kind == POX_KIND_SPREAD   || kind == POX_KIND_RADAR     ||
+                         kind == POX_KIND_COUNTERSPIN || kind == POX_KIND_SNAKE  ||
+                         kind == POX_KIND_BREATHE  || kind == POX_KIND_STROBE    ||
+                         kind == POX_KIND_FIREFLIES);
 
   if (geometric) {
     /* Snapshot the tunables (already set by the caller) and arm the looping
@@ -500,7 +511,11 @@ void pox_engine_set_kind(PoxEngine *e, PoxKind kind, int reverse, PoxColor color
     /* Constant-speed motions run linear; the rest ease-out for a nicer pulse. */
     e->proc_linear     = (kind == POX_KIND_ROTATE  || kind == POX_KIND_PING_PONG ||
                           kind == POX_KIND_LASER   || kind == POX_KIND_TRACER    ||
-                          kind == POX_KIND_COMET   || kind == POX_KIND_SPINNER);
+                          kind == POX_KIND_COMET   || kind == POX_KIND_SPINNER   ||
+                          kind == POX_KIND_SPREAD  || kind == POX_KIND_RADAR     ||
+                          kind == POX_KIND_COUNTERSPIN || kind == POX_KIND_SNAKE ||
+                          kind == POX_KIND_BREATHE || kind == POX_KIND_STROBE    ||
+                          kind == POX_KIND_FIREFLIES);
     e->proc_start_s    = e->now_s;
     e->proc_progress   = 0.0;
   } else {
@@ -569,6 +584,26 @@ static void emit_overscroll(PoxEngine *e, PoxInstance *out, size_t *count, size_
   }
   emit_segment(e, out, count, cap, h_head, POX_BASE_SEG, a, e->os_color, h_trail, tt, prog);
   emit_segment(e, out, count, cap, v_head, POX_BASE_SEG, a, e->os_color, v_trail, tt, prog);
+}
+
+/* Emit a uniform-alpha ring of blocks around the whole perimeter. Each block is
+ * a 1-block segment, which sidesteps emit_segment's per-segment trailing fade —
+ * that's what makes the ring uniform (used by breathe / strobe / the radar
+ * backdrop). Block spacing scales with thickness so the ring stays continuous. */
+static void emit_ring(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap,
+                      float alpha, PoxColor color, const PoxTunables *tune)
+{
+  if (alpha <= 0.003f) return;
+  double spacing = (double) tune->thickness * (tune->gap ? 1.0 : 1.6);
+  if (spacing < 4.0) spacing = 4.0;
+  int n = (int) (e->perim / spacing);
+  if (n < 4)   n = 4;
+  if (n > 400) n = 400;
+  double step = e->perim / n;
+  for (int k = 0; k < n; k++) {
+    if (*count >= cap) break;
+    emit_segment(e, out, count, cap, k * step, 1.0, alpha, color, +1, tune, 1.0);
+  }
 }
 
 /* ---- geometric kinds (ported verbatim from kgx-edge.c's per-preset switch,
@@ -758,6 +793,77 @@ static void emit_kind(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap)
     double rh = fmod(origin + spread, perim);
     emit_segment(e, out, count, cap, lh, clamped, al, preset_palette_color(e, 0, e->proc_color), lt, pt, hp);
     emit_segment(e, out, count, cap, rh, clamped, al, preset_palette_color(e, 1, e->proc_color), rt, pt, hp);
+    break;
+  }
+  case POX_KIND_SPREAD: {
+    /* A repeating volley: pairs of bolts fan out from the top centre at
+     * staggered speeds, fading as they fly, re-fired each cycle. */
+    double origin = w / 2.0;
+    const int N = 4;
+    double bolt = seg_full * 0.3;
+    float  al   = (1.0f - (float) p) * 0.9f;
+    for (int k = 0; k < N; k++) {
+      double sk = (double) (k + 1) / N;
+      double spread = (perim / 3.0) * sk * p;
+      double lh = fmod(origin - spread + 2.0 * perim, perim);
+      double rh = fmod(origin + spread, perim);
+      emit_segment(e, out, count, cap, lh, bolt, al, preset_palette_color(e, k, e->proc_color), +1, pt, p);
+      emit_segment(e, out, count, cap, rh, bolt, al, preset_palette_color(e, k, e->proc_color), -1, pt, p);
+    }
+    break;
+  }
+  case POX_KIND_RADAR: {
+    /* A bright wedge sweeps around over a dim full ring; the wedge's own
+     * trailing fade is the radar afterglow. */
+    int dir = e->reverse ? -1 : +1;
+    emit_ring(e, out, count, cap, 0.15f, col_cycle, pt);
+    double head = fmod(dir * perim * p + 2.0 * perim, perim);
+    emit_segment(e, out, count, cap, head, seg_full * 3.0, 0.9f, col_cycle, -dir, pt, p);
+    break;
+  }
+  case POX_KIND_COUNTERSPIN: {
+    /* Two trails lapping in opposite directions, crossing twice per lap. */
+    double tail = seg_full * 1.2;
+    double h1 = fmod(+perim * p + 2.0 * perim, perim);
+    double h2 = fmod(-perim * p + 2.0 * perim, perim);
+    emit_segment(e, out, count, cap, h1, tail, 0.85f, preset_palette_color(e, 0, e->proc_color), -1, pt, p);
+    emit_segment(e, out, count, cap, h2, tail, 0.85f, preset_palette_color(e, 1, e->proc_color), +1, pt, p);
+    break;
+  }
+  case POX_KIND_SNAKE: {
+    /* A contiguous solid body crawling the perimeter (seed it gapless). */
+    int dir = e->reverse ? -1 : +1;
+    double head = fmod(dir * perim * p + 2.0 * perim, perim);
+    emit_segment(e, out, count, cap, head, seg_full * 1.6, 0.9f, col_cycle, -dir, pt, p);
+    break;
+  }
+  case POX_KIND_BREATHE: {
+    /* The whole outline glows up and down in unison; colour steps each breath. */
+    float br = 0.22f + 0.65f * (float) (0.5 - 0.5 * cos(2.0 * 3.141592653589793 * p));
+    emit_ring(e, out, count, cap, br, col_cycle, pt);
+    break;
+  }
+  case POX_KIND_STROBE: {
+    /* The whole outline blinks on/off, four beats per cycle. */
+    double ph = fmod(p * 4.0, 1.0);
+    emit_ring(e, out, count, cap, ph < 0.45 ? 0.9f : 0.0f, col_cycle, pt);
+    break;
+  }
+  case POX_KIND_FIREFLIES: {
+    /* Sparse blocks at fixed pseudo-random spots, each glimmering on its own
+     * hash-derived phase (stable frame-to-frame, so they twinkle in place). */
+    const int M = 14;
+    for (int k = 0; k < M; k++) {
+      double hpos = sin((double) (k + 1) * 12.9898) * 43758.5453;
+      double hph  = sin((double) (k + 1) * 78.2330) * 12345.6789;
+      hpos -= floor(hpos); hph -= floor(hph);
+      double tloc = fmod(p + hph, 1.0);
+      float  gl = (float) (0.5 - 0.5 * cos(2.0 * 3.141592653589793 * tloc));
+      gl *= gl;
+      if (gl > 0.02f)
+        emit_segment(e, out, count, cap, hpos * perim, 1.0, gl * 0.9f,
+                     preset_palette_color(e, k, e->proc_color), +1, pt, 1.0);
+    }
     break;
   }
   default:

@@ -64,12 +64,19 @@ typedef enum {
   POX_KIND_ROTATE,
   POX_KIND_PING_PONG,
   POX_KIND_SCROLL,
-  POX_KIND_LASER,     /* rapid-fire bolts streaming along one edge */
-  POX_KIND_TRACER,    /* evenly-spaced bolts circling the perimeter */
-  POX_KIND_COMET,     /* one long-tailed traveler lapping the perimeter */
-  POX_KIND_SPINNER,   /* a rotating arc that grows then shrinks each lap */
-  POX_KIND_RIPPLE,    /* a pulse races both ways and collides at the far side */
-  POX_KIND_CHARGE,    /* particles implode to a point, then fire back out */
+  POX_KIND_LASER,       /* rapid-fire bolts streaming along one edge */
+  POX_KIND_TRACER,      /* evenly-spaced bolts circling the perimeter */
+  POX_KIND_COMET,       /* one long-tailed traveler lapping the perimeter */
+  POX_KIND_SPINNER,     /* a rotating arc that grows then shrinks each lap */
+  POX_KIND_RIPPLE,      /* a pulse races both ways and collides at the far side */
+  POX_KIND_CHARGE,      /* particles implode to a point, then fire back out */
+  POX_KIND_SPREAD,      /* a volley of bolts fanning out from a point */
+  POX_KIND_RADAR,       /* a bright wedge sweeps over a dim full ring */
+  POX_KIND_COUNTERSPIN, /* two trails crossing in opposite directions */
+  POX_KIND_SNAKE,       /* a contiguous solid body crawling the perimeter */
+  POX_KIND_BREATHE,     /* the whole outline glows up and down, no travel */
+  POX_KIND_STROBE,      /* the whole outline blinks on/off on a beat */
+  POX_KIND_FIREFLIES,   /* sparse blocks glimmering on/off at fixed spots */
 } PoxKind;
 
 /* Tunable parameters for a particle stream (ported from the edge engine). */

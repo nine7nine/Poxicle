@@ -15,7 +15,7 @@ G_BEGIN_DECLS
 /* User-tunable presets, in display order. "none" is an app state, not a tunable
  * preset, so it is not listed here. The scroll/overscroll motion has no tunable
  * preset of its own — it is driven by real scroll events, not picked as a look. */
-#define POX_N_PRESETS 12
+#define POX_N_PRESETS 19
 extern const char *const pox_preset_names[POX_N_PRESETS];
 
 /* The 15 fields of a Preset-<name> entry, in serialization order. */

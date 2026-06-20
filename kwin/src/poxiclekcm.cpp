@@ -28,7 +28,9 @@ const QStringList kPresets = {
     QStringLiteral("fireworks"), QStringLiteral("ping-pong"), QStringLiteral("pulse-out"),
     QStringLiteral("rotate"), QStringLiteral("laser"), QStringLiteral("tracer"),
     QStringLiteral("comet"), QStringLiteral("spinner"), QStringLiteral("ripple"),
-    QStringLiteral("charge"),
+    QStringLiteral("charge"), QStringLiteral("spread"), QStringLiteral("radar"),
+    QStringLiteral("counter-spin"), QStringLiteral("snake"), QStringLiteral("breathe"),
+    QStringLiteral("strobe"), QStringLiteral("fireflies"),
 };
 // Index 0 == inherit ("—") for the sentinel combos.
 const QStringList kShapes   = { QStringLiteral("—"), QStringLiteral("Square"),

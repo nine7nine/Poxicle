@@ -7,9 +7,10 @@
 /* Preset choices for a rule (includes "none" = off), index == cycle value. */
 static const char *const apps_presets[] = {
   "ambient", "none", "corners", "fireworks", "ping-pong", "pulse-out",
-  "rotate", "laser", "tracer", "comet", "spinner", "ripple", "charge", NULL,
+  "rotate", "laser", "tracer", "comet", "spinner", "ripple", "charge",
+  "spread", "radar", "counter-spin", "snake", "breathe", "strobe", "fireflies", NULL,
 };
-#define N_APPS_PRESETS 13
+#define N_APPS_PRESETS 20
 
 static const char *const g_rev[]   = { "▶", "◀", "◆" };                  /* fwd / rev / loop */
 static const char *const g_shape[]  = { "—", "■", "●", "◆", "▶" };  /* base -1: inherit + shapes */

@@ -7,6 +7,7 @@
 const char *const pox_preset_names[POX_N_PRESETS] = {
   "ambient", "corners", "fireworks", "ping-pong", "pulse-out", "rotate",
   "laser", "tracer", "comet", "spinner", "ripple", "charge",
+  "spread", "radar", "counter-spin", "snake", "breathe", "strobe", "fireflies",
 };
 
 /* Built-in seeds — a verbatim copy of poxconfig.cpp kSeeds (the effect's
@@ -27,6 +28,13 @@ static const Seed kSeeds[] = {
   { "spinner",   { 1.3f, 14, 0.9f, 0.2f,  0.8f, 0.1f, 0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
   { "ripple",    { 1.0f, 14, 0.6f, 0.3f,  0.8f, 0.15f,0.3f,  2, 0, 1, 1, 0.0f,  0.0f, 2, 0 } },
   { "charge",    { 1.0f, 16, 0.6f, 0.3f,  0.8f, 0.15f,0.3f,  2, 0, 1, 1, 0.0f,  0.0f, 2, 0 } },
+  { "spread",    { 2.0f, 10, 0.4f, 0.0f,  0.5f, 0.0f, 0.1f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "radar",     { 1.0f, 14, 1.2f, 0.2f,  0.8f, 0.1f, 0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "counter-spin",{ 1.1f,12, 0.8f, 0.2f, 0.8f, 0.1f, 0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "snake",     { 1.0f, 16, 1.0f, 0.1f,  0.5f, 0.0f, 0.1f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "breathe",   { 0.5f, 22, 0.9f, 0.0f,  0.5f, 0.0f, 0.0f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "strobe",    { 1.2f, 20, 0.9f, 0.0f,  0.5f, 0.0f, 0.0f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "fireflies", { 0.7f, 12, 0.3f, 0.0f,  0.5f, 0.0f, 0.0f,  2, 0, 1, 0, 0.0f,  0.0f, 2, 0 } },
 };
 
 /* ---- KConfig CLI helpers (KConfig owns the file format) ---- */

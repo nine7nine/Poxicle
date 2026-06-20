@@ -102,6 +102,13 @@ static const char *CSS =
   ".preset-spinner   { color: #6fe0a0; }"
   ".preset-ripple    { color: #7fb0ff; }"
   ".preset-charge    { color: #ffc14d; }"
+  ".preset-spread       { color: #ff7a40; }"
+  ".preset-radar        { color: #50e0b0; }"
+  ".preset-counter-spin { color: #a0d860; }"
+  ".preset-snake        { color: #74cf6a; }"
+  ".preset-breathe      { color: #9aa0ec; }"
+  ".preset-strobe       { color: #e8e060; }"
+  ".preset-fireflies    { color: #ffe38a; }"
   /* per-column cycle-button colours */
   "button.tune-gap     { color: #50d070; }"
   "button.tune-rls     { color: #e0a040; }"

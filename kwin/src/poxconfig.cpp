@@ -53,6 +53,13 @@ const Seed kSeeds[] = {
     { "spinner",   mk(1.3f, 14, 0.9f, 0.2f,  0.8f, 0.1f, 0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0) },
     { "ripple",    mk(1.0f, 14, 0.6f, 0.3f,  0.8f, 0.15f,0.3f,  2, 0, 1, 1, 0.0f,  0.0f, 2, 0) },
     { "charge",    mk(1.0f, 16, 0.6f, 0.3f,  0.8f, 0.15f,0.3f,  2, 0, 1, 1, 0.0f,  0.0f, 2, 0) },
+    { "spread",    mk(2.0f, 10, 0.4f, 0.0f,  0.5f, 0.0f, 0.1f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0) },
+    { "radar",     mk(1.0f, 14, 1.2f, 0.2f,  0.8f, 0.1f, 0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0) },
+    { "counter-spin",mk(1.1f,12, 0.8f, 0.2f, 0.8f, 0.1f, 0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0) },
+    { "snake",     mk(1.0f, 16, 1.0f, 0.1f,  0.5f, 0.0f, 0.1f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0) },
+    { "breathe",   mk(0.5f, 22, 0.9f, 0.0f,  0.5f, 0.0f, 0.0f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0) },
+    { "strobe",    mk(1.2f, 20, 0.9f, 0.0f,  0.5f, 0.0f, 0.0f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0) },
+    { "fireflies", mk(0.7f, 12, 0.3f, 0.0f,  0.5f, 0.0f, 0.0f,  2, 0, 1, 0, 0.0f,  0.0f, 2, 0) },
 };
 
 int asInt(const QString &s, int dflt)
@@ -77,6 +84,13 @@ PoxKind kindForPreset(const QString &name)
     if (name == QLatin1String("spinner"))    return POX_KIND_SPINNER;
     if (name == QLatin1String("ripple"))     return POX_KIND_RIPPLE;
     if (name == QLatin1String("charge"))     return POX_KIND_CHARGE;
+    if (name == QLatin1String("spread"))     return POX_KIND_SPREAD;
+    if (name == QLatin1String("radar"))      return POX_KIND_RADAR;
+    if (name == QLatin1String("counter-spin")) return POX_KIND_COUNTERSPIN;
+    if (name == QLatin1String("snake"))      return POX_KIND_SNAKE;
+    if (name == QLatin1String("breathe"))    return POX_KIND_BREATHE;
+    if (name == QLatin1String("strobe"))     return POX_KIND_STROBE;
+    if (name == QLatin1String("fireflies"))  return POX_KIND_FIREFLIES;
     if (name == QLatin1String("scroll1") || name == QLatin1String("scroll2"))
         return POX_KIND_SCROLL;
     return POX_KIND_AMBIENT;   // "ambient" + any unknown
