@@ -5,7 +5,8 @@
 #include <stdlib.h>
 
 const char *const pox_preset_names[POX_N_PRESETS] = {
-  "ambient", "corners", "fireworks", "ping-pong", "pulse-out", "rotate", "scroll2",
+  "ambient", "corners", "fireworks", "ping-pong", "pulse-out", "rotate",
+  "laser", "tracer", "comet", "spinner", "ripple", "charge",
 };
 
 /* Built-in seeds — a verbatim copy of poxconfig.cpp kSeeds (the effect's
@@ -20,7 +21,12 @@ static const Seed kSeeds[] = {
   { "ping-pong", { 0.5f, 20, 0.1f, 0.45f, 0.8f, 0.0f, 0.0f,  2, 0, 1, 0, 0.0f,  0.0f, 2, 0 } },
   { "pulse-out", { 1.0f, 20, 0.9f, 0.5f,  0.8f, 0.0f, 0.1f,  2, 1, 0, 0, 0.5f,  0.0f, 2, 0 } },
   { "rotate",    { 1.5f, 20, 0.9f, 0.5f,  0.8f, 0.2f, 0.3f,  2, 0, 0, 0, 0.15f, 0.3f, 2, 0 } },
-  { "scroll2",   { 1.0f, 20, 0.9f, 0.5f,  0.8f, 0.2f, 0.3f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "laser",     { 2.5f,  8, 0.4f, 0.0f,  0.5f, 0.0f, 0.1f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "tracer",    { 1.2f, 12, 0.5f, 0.2f,  0.8f, 0.1f, 0.2f,  2, 0, 0, 0, 0.0f,  0.0f, 2, 0 } },
+  { "comet",     { 0.8f, 16, 1.5f, 0.3f,  0.8f, 0.1f, 0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "spinner",   { 1.3f, 14, 0.9f, 0.2f,  0.8f, 0.1f, 0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "ripple",    { 1.0f, 14, 0.6f, 0.3f,  0.8f, 0.15f,0.3f,  2, 0, 1, 1, 0.0f,  0.0f, 2, 0 } },
+  { "charge",    { 1.0f, 16, 0.6f, 0.3f,  0.8f, 0.15f,0.3f,  2, 0, 1, 1, 0.0f,  0.0f, 2, 0 } },
 };
 
 /* ---- KConfig CLI helpers (KConfig owns the file format) ---- */

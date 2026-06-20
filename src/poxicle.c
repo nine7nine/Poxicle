@@ -312,22 +312,33 @@ static void emit_segment(PoxEngine *e, PoxInstance *out, size_t *count, size_t c
   }
 }
 
-/* A burst emits two segments spreading out from its head. */
+/* A burst emits two segments spreading out from its head — or, when the engine
+ * is reversed (ambient/fireworks "reverse"), imploding: the two segments start
+ * spread apart and converge to the head point, shrinking as they meet. Driven by
+ * running the spread parameter backwards (bp = 1 - p); when not reversed bp == p,
+ * so the outward behaviour is unchanged. Ported from Chiguiro's fireworks-implode
+ * (kgx-edge.c), extended to ambient too since both share this burst path here. */
 static void emit_burst(PoxEngine *e, const PoxBurst *b,
                        PoxInstance *out, size_t *count, size_t cap)
 {
   const PoxTunables *tt = &b->tune;
-  double p = b->progress;
-  float  b_env  = pox_envelope(p, tt->env_attack, tt->env_release, tt->env_curve);
-  double seg_env = pox_envelope(p, tt->env_attack, 0.0, tt->env_curve);
+  int    implode = e->reverse;
+  double p  = b->progress;
+  double bp = implode ? 1.0 - p : p;
+  float  b_env  = implode
+                ? pox_envelope(bp, 0.0, 0.02, 2)
+                : pox_envelope(p, tt->env_attack, tt->env_release, tt->env_curve);
+  double seg_env = pox_envelope(bp, tt->env_attack, 0.0, tt->env_curve);
   double seg    = POX_BASE_SEG * tt->tail_length * 2.0 * seg_env;
   float  a      = b_env * 0.5f;
-  double spread = seg * 3.0 * p;
+  double spread = seg * 3.0 * bp;
   double lh = fmod(b->head - spread + e->perim, e->perim);
   double rh = fmod(b->head + spread, e->perim);
+  int    l_trail = implode ? -1 : +1;
+  int    r_trail = implode ? +1 : -1;
 
-  emit_segment(e, out, count, cap, lh, seg, a, b->color, +1, tt, p);
-  emit_segment(e, out, count, cap, rh, seg, a, b->color, -1, tt, p);
+  emit_segment(e, out, count, cap, lh, seg, a, b->color, l_trail, tt, p);
+  emit_segment(e, out, count, cap, rh, seg, a, b->color, r_trail, tt, p);
 }
 
 /* ---- burst lifecycle ---- */
@@ -449,6 +460,12 @@ static double proc_duration_ms(int kind, double spd)
   case POX_KIND_PING_PONG: return 1200.0 / spd;
   case POX_KIND_CORNERS:
   case POX_KIND_PULSE_OUT: return 2500.0 / spd;
+  case POX_KIND_LASER:     return 1400.0 / spd;   /* fast fire cadence */
+  case POX_KIND_TRACER:    return 5000.0 / spd;   /* one slow lap */
+  case POX_KIND_COMET:     return 6000.0 / spd;   /* slower, dramatic lap */
+  case POX_KIND_SPINNER:   return 2600.0 / spd;
+  case POX_KIND_RIPPLE:    return 2000.0 / spd;
+  case POX_KIND_CHARGE:    return 2400.0 / spd;
   default:                 return 3000.0 / spd;
   }
 }
@@ -469,7 +486,10 @@ void pox_engine_set_kind(PoxEngine *e, PoxKind kind, int reverse, PoxColor color
   e->proc_cycle = 0;   /* restart palette stepping for this (re)attach */
 
   const int geometric = (kind == POX_KIND_CORNERS  || kind == POX_KIND_PULSE_OUT ||
-                         kind == POX_KIND_ROTATE   || kind == POX_KIND_PING_PONG);
+                         kind == POX_KIND_ROTATE   || kind == POX_KIND_PING_PONG ||
+                         kind == POX_KIND_LASER    || kind == POX_KIND_TRACER    ||
+                         kind == POX_KIND_COMET    || kind == POX_KIND_SPINNER   ||
+                         kind == POX_KIND_RIPPLE   || kind == POX_KIND_CHARGE);
 
   if (geometric) {
     /* Snapshot the tunables (already set by the caller) and arm the looping
@@ -477,7 +497,10 @@ void pox_engine_set_kind(PoxEngine *e, PoxKind kind, int reverse, PoxColor color
     pox_engine_set_ambient(e, 0);
     e->proc_tune       = e->tune;
     e->proc_duration_s = proc_duration_ms(kind, e->tune.speed) / 1000.0;
-    e->proc_linear     = (kind == POX_KIND_ROTATE || kind == POX_KIND_PING_PONG);
+    /* Constant-speed motions run linear; the rest ease-out for a nicer pulse. */
+    e->proc_linear     = (kind == POX_KIND_ROTATE  || kind == POX_KIND_PING_PONG ||
+                          kind == POX_KIND_LASER   || kind == POX_KIND_TRACER    ||
+                          kind == POX_KIND_COMET   || kind == POX_KIND_SPINNER);
     e->proc_start_s    = e->now_s;
     e->proc_progress   = 0.0;
   } else {
@@ -655,6 +678,86 @@ static void emit_kind(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap)
       trail = +1;
     }
     emit_segment(e, out, count, cap, pos, clamped_seg, pp_a, col_cycle, trail, pt, half_p);
+    break;
+  }
+  case POX_KIND_LASER: {
+    /* Rapid-fire bolts streaming from one corner along the top edge, several in
+     * flight at once and fading as they travel. */
+    int    dir    = e->reverse ? -1 : +1;
+    double origin = e->reverse ? (w + h) : 0.0;
+    double range  = w;
+    const int N   = 4;
+    double bolt   = seg_full * 0.25;
+    for (int k = 0; k < N; k++) {
+      double ph = fmod(p + (double) k / N, 1.0);
+      double d  = fmod(origin + dir * range * ph + 2.0 * perim, perim);
+      float  al = (1.0f - (float) ph) * 0.95f;
+      emit_segment(e, out, count, cap, d, bolt, al,
+                   preset_palette_color(e, k, e->proc_color), -dir, pt, ph);
+    }
+    break;
+  }
+  case POX_KIND_TRACER: {
+    /* Evenly-spaced bolts chasing each other around the whole perimeter. */
+    int    dir  = e->reverse ? -1 : +1;
+    const int N = 5;
+    double bolt = seg_full * 0.45;
+    for (int k = 0; k < N; k++) {
+      double head = fmod(dir * perim * p + (double) k * (perim / N) + 2.0 * perim, perim);
+      emit_segment(e, out, count, cap, head, bolt, 0.85f,
+                   preset_palette_color(e, k, e->proc_color), -dir, pt, p);
+    }
+    break;
+  }
+  case POX_KIND_COMET: {
+    /* One long glowing tail lapping the perimeter; colour steps each lap. */
+    int    dir  = e->reverse ? -1 : +1;
+    double head = fmod(dir * perim * p + 2.0 * perim, perim);
+    double tail = seg_full * 2.5;
+    emit_segment(e, out, count, cap, head, tail, 0.85f, col_cycle, -dir, pt, p);
+    break;
+  }
+  case POX_KIND_SPINNER: {
+    /* A single arc that rotates while its length grows mid-lap and shrinks at the
+     * lap boundaries — the Material indeterminate-spinner read. */
+    int    dir  = e->reverse ? -1 : +1;
+    double head = fmod(dir * perim * p + 2.0 * perim, perim);
+    double arc  = seg_full * (0.2 + 1.2 * sin(3.141592653589793 * p));
+    if (arc < seg_full * 0.2) arc = seg_full * 0.2;
+    emit_segment(e, out, count, cap, head, arc, 0.85f, col_cycle, -dir, pt, p);
+    break;
+  }
+  case POX_KIND_RIPPLE: {
+    /* A pulse leaves one corner, races both ways around, and collides at the
+     * antipode (half the perimeter each way). */
+    double origin  = e->reverse ? (w + h) : 0.0;
+    double spread  = (perim / 2.0) * p;
+    double pulse   = seg_full * 0.6;
+    double clamped = pulse < spread ? pulse : spread;
+    if (clamped < 1.0) clamped = 1.0;
+    double lh = fmod(origin - spread + 2.0 * perim, perim);
+    double rh = fmod(origin + spread, perim);
+    emit_segment(e, out, count, cap, lh, clamped, a, preset_palette_color(e, 0, e->proc_color), +1, pt, p);
+    emit_segment(e, out, count, cap, rh, clamped, a, preset_palette_color(e, 1, e->proc_color), -1, pt, p);
+    break;
+  }
+  case POX_KIND_CHARGE: {
+    /* First half: two arms implode from spread to a point (charging, brightening);
+     * second half: they fire back outward, fading. A repeating charge-shot. */
+    double origin = w / 2.0;
+    int    fire   = (p >= 0.5);
+    double hp     = fire ? (p - 0.5) * 2.0 : p * 2.0;
+    double spread = (perim / 3.0) * (fire ? hp : (1.0 - hp));
+    float  al     = fire ? (0.9f * (1.0f - (float) hp)) : (0.5f + 0.4f * (float) hp);
+    int    lt     = fire ? +1 : -1;
+    int    rt     = fire ? -1 : +1;
+    double pulse  = seg_full * 0.5;
+    double clamped = pulse < spread ? pulse : spread;
+    if (clamped < 1.0) clamped = 1.0;
+    double lh = fmod(origin - spread + 2.0 * perim, perim);
+    double rh = fmod(origin + spread, perim);
+    emit_segment(e, out, count, cap, lh, clamped, al, preset_palette_color(e, 0, e->proc_color), lt, pt, hp);
+    emit_segment(e, out, count, cap, rh, clamped, al, preset_palette_color(e, 1, e->proc_color), rt, pt, hp);
     break;
   }
   default:

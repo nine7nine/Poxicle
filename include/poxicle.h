@@ -52,9 +52,9 @@ typedef enum {
 } PoxEdge;
 
 /* High-level emission pattern for an edge stream — the per-preset identity.
- * AMBIENT/FIREWORKS use the auto-burst fan; CORNERS/PULSE_OUT/ROTATE/PING_PONG
- * run a looping geometric timeline (ported from Chiguiro's per-preset edge
- * animations); SCROLL loops an overscroll beam; NONE emits nothing continuous. */
+ * AMBIENT/FIREWORKS use the auto-burst fan; the geometric kinds run a looping
+ * timeline; SCROLL loops an overscroll beam; NONE emits nothing continuous.
+ * LASER..CHARGE are the expanded arcade/loader set (all geometric-timeline). */
 typedef enum {
   POX_KIND_NONE = 0,
   POX_KIND_AMBIENT,
@@ -64,6 +64,12 @@ typedef enum {
   POX_KIND_ROTATE,
   POX_KIND_PING_PONG,
   POX_KIND_SCROLL,
+  POX_KIND_LASER,     /* rapid-fire bolts streaming along one edge */
+  POX_KIND_TRACER,    /* evenly-spaced bolts circling the perimeter */
+  POX_KIND_COMET,     /* one long-tailed traveler lapping the perimeter */
+  POX_KIND_SPINNER,   /* a rotating arc that grows then shrinks each lap */
+  POX_KIND_RIPPLE,    /* a pulse races both ways and collides at the far side */
+  POX_KIND_CHARGE,    /* particles implode to a point, then fire back out */
 } PoxKind;
 
 /* Tunable parameters for a particle stream (ported from the edge engine). */

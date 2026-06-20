@@ -26,7 +26,9 @@ namespace {
 const QStringList kPresets = {
     QStringLiteral("ambient"), QStringLiteral("none"), QStringLiteral("corners"),
     QStringLiteral("fireworks"), QStringLiteral("ping-pong"), QStringLiteral("pulse-out"),
-    QStringLiteral("rotate"), QStringLiteral("scroll2"),
+    QStringLiteral("rotate"), QStringLiteral("laser"), QStringLiteral("tracer"),
+    QStringLiteral("comet"), QStringLiteral("spinner"), QStringLiteral("ripple"),
+    QStringLiteral("charge"),
 };
 // Index 0 == inherit ("—") for the sentinel combos.
 const QStringList kShapes   = { QStringLiteral("—"), QStringLiteral("Square"),

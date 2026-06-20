@@ -32,11 +32,13 @@ static const char *CSS =
   "  border: 1px solid color-mix(in srgb, @accent_bg_color 55%, transparent); }"
   /* normal (non-cell) buttons read as glass — but NEVER the window-decoration
    * buttons (close/minimize/maximize/titlebutton): leave those to the theme,
-   * exactly as Chiguiro / WeazyStroke do. */
+   * exactly as Chiguiro / WeazyStroke do. Deliberately set NO text colour here:
+   * normal buttons inherit the light window colour, while the per-column cell
+   * glyphs keep their own `.tune-*` colours (this rule's :not() chain otherwise
+   * outranks them and would flatten every glyph to one washed-out white). */
   "button:not(.titlebutton):not(.close):not(.minimize):not(.maximize) {"
   "  background: transparent; background-image: none; box-shadow: none;"
-  "  border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;"
-  "  color: rgba(255,255,255,0.95); }"
+  "  border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }"
   "button:not(.titlebutton):not(.close):not(.minimize):not(.maximize):hover {"
   "  border-color: rgba(255,255,255,0.30);"
   "  background-color: rgba(255,255,255,0.05); }"
@@ -94,7 +96,12 @@ static const char *CSS =
   ".preset-ping-pong { color: #d07080; }"
   ".preset-pulse-out { color: #c080d8; }"
   ".preset-rotate    { color: #58b8d8; }"
-  ".preset-scroll2   { color: #78a5d4; }"
+  ".preset-laser     { color: #ff5a5a; }"
+  ".preset-tracer    { color: #5ad1ff; }"
+  ".preset-comet     { color: #c8a0ff; }"
+  ".preset-spinner   { color: #6fe0a0; }"
+  ".preset-ripple    { color: #7fb0ff; }"
+  ".preset-charge    { color: #ffc14d; }"
   /* per-column cycle-button colours */
   "button.tune-gap     { color: #50d070; }"
   "button.tune-rls     { color: #e0a040; }"
