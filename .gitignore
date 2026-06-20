@@ -1,5 +1,10 @@
-/build/
-/build-*/
+# Build dirs (engine meson builds, kwin/ CMake builds, etc.) — anywhere in the tree
+build/
+build-*/
 *.o
 *.a
 *.so
+
+# Editor / tooling
+.cache/
+.claude/

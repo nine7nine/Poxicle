@@ -72,6 +72,33 @@ Consumers in the wild: the **Chiguiro** terminal (in-app subsurface overlay, and
 rendering through the compositor) and a standalone **KWin Plasma 6** edge-particle
 effect — both ride this same core.
 
+## Repository layout
+
+```
+src/ include/ demo/   the engine: pure-C core + GLES renderer + opt-in Wayland
+                      backend. meson; always built.
+kwin/                 KWin Plasma 6 effect + its Configure KCM. CMake/ECM (as KDE
+                      requires); compiles the engine straight from ../src.
+configurator/         standalone GTK4/libadwaita app to edit presets + per-app
+                      rules. Toolkit-only; meson, opt-in (-Dconfigurator=true).
+docs/                 design + integration handoff notes.
+```
+
+A GNOME Shell extension is planned as a sibling integration.
+
+### Building the integrations
+
+```bash
+# engine (+ demos):
+meson setup build && meson compile -C build
+
+# add the GTK4 configurator:
+meson setup build -Dconfigurator=true && meson compile -C build
+
+# the KWin effect — a separate CMake build, since KDE mandates ECM/CMake:
+cd kwin && ./install.sh        # builds + installs the effect + KCM, enables it
+```
+
 ## Toolchain (verified here)
 
 wayland-client 1.25, wayland-egl 18.1, EGL 1.5, GLES 3.2 (glesv2), wayland-scanner,

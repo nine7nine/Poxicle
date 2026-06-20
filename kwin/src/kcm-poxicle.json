@@ -1,0 +1,14 @@
+{
+    "KPlugin": {
+        "Name": "Poxicle Particles",
+        "Description": "Per-app edge particle effects",
+        "Category": "Appearance",
+        "License": "GPL-3.0-or-later",
+        "Authors": [
+            {
+                "Name": "Jordan Johnston",
+                "Email": "johnstonljordan@gmail.com"
+            }
+        ]
+    }
+}

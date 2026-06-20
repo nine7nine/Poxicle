@@ -80,3 +80,10 @@ if get_option('demos')
     link_with : [libpoxicle_wl, libpoxicle],
     install : false)
 endif
+
+# Standalone GTK4 configurator (opt-in). Toolkit-only; see configurator/meson.build.
+# The KWin effect (kwin/) is a separate CMake/ECM build — KDE mandates it — and
+# compiles the engine straight from ../src.
+if get_option('configurator')
+  subdir('configurator')
+endif

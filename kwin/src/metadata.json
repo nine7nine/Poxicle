@@ -1,0 +1,16 @@
+{
+    "KPlugin": {
+        "Name": "Poxicle Particles",
+        "Description": "Edge particle effects drawn per window",
+        "Category": "Appearance",
+        "EnabledByDefault": false,
+        "License": "GPL-3.0-or-later",
+        "Authors": [
+            {
+                "Name": "Jordan Johnston",
+                "Email": "johnstonljordan@gmail.com"
+            }
+        ]
+    },
+    "X-KDE-ConfigModule": "kwin_poxicle_config"
+}
