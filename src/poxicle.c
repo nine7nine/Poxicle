@@ -117,21 +117,26 @@ static const PoxPalette POX_BUILTIN_PALETTES[] = {
                    {0.00f,0.59f,0.78f,1}, {0.28f,0.79f,0.89f,1} }, 5 },
   { "Mono Pink", { {0.35f,0.05f,0.13f,1}, {0.50f,0.06f,0.18f,1}, {0.64f,0.07f,0.24f,1},
                    {0.79f,0.09f,0.29f,1}, {1.00f,0.30f,0.43f,1} }, 5 },
-  /* Soft/analogous additions — adjacent hues, low saturation spread, no opposing
-   * colours. Appended (not slotted into the family groups above) so existing
-   * stored palette ids stay stable. */
-  { "Dusk",      { {0.30f,0.31f,0.46f,1}, {0.38f,0.36f,0.55f,1}, {0.47f,0.43f,0.63f,1},
-                   {0.57f,0.52f,0.71f,1}, {0.69f,0.65f,0.80f,1} }, 5 },
-  { "Slate",     { {0.28f,0.34f,0.42f,1}, {0.36f,0.43f,0.52f,1}, {0.46f,0.54f,0.63f,1},
-                   {0.58f,0.65f,0.74f,1}, {0.72f,0.78f,0.85f,1} }, 5 },
-  { "Seafoam",   { {0.27f,0.49f,0.46f,1}, {0.36f,0.59f,0.55f,1}, {0.48f,0.69f,0.64f,1},
-                   {0.62f,0.79f,0.73f,1}, {0.77f,0.88f,0.82f,1} }, 5 },
-  { "Lilac",     { {0.55f,0.44f,0.60f,1}, {0.64f,0.52f,0.68f,1}, {0.74f,0.62f,0.76f,1},
-                   {0.83f,0.72f,0.82f,1}, {0.90f,0.81f,0.87f,1} }, 5 },
-  { "Sand",      { {0.55f,0.45f,0.33f,1}, {0.67f,0.56f,0.42f,1}, {0.78f,0.68f,0.53f,1},
-                   {0.87f,0.79f,0.65f,1}, {0.93f,0.88f,0.77f,1} }, 5 },
-  { "Clay",      { {0.55f,0.34f,0.27f,1}, {0.66f,0.43f,0.34f,1}, {0.76f,0.53f,0.43f,1},
-                   {0.84f,0.64f,0.54f,1}, {0.90f,0.76f,0.67f,1} }, 5 },
+  /* Flowing-gradient additions — vivid 2-3 colour gradients sampled into smooth
+   * 5-stops, each anchored by a dark tone so they read well on dark windows
+   * (the colours blend into each other rather than fighting). Appended (not
+   * slotted into the family groups above) so existing stored ids stay stable. */
+  { "Verdant",   { {0.68f,0.88f,0.58f,1}, {0.40f,0.82f,0.62f,1}, {0.24f,0.58f,0.66f,1},
+                   {0.34f,0.36f,0.55f,1}, {0.30f,0.22f,0.38f,1} }, 5 },
+  { "Meadow",    { {0.23f,0.20f,0.38f,1}, {0.31f,0.35f,0.50f,1}, {0.45f,0.56f,0.49f,1},
+                   {0.64f,0.76f,0.50f,1}, {0.95f,0.95f,0.62f,1} }, 5 },
+  { "Orchid",    { {0.29f,0.10f,0.36f,1}, {0.55f,0.22f,0.56f,1}, {0.79f,0.42f,0.79f,1},
+                   {0.93f,0.57f,0.76f,1}, {1.00f,0.63f,0.56f,1} }, 5 },
+  { "Spectra",   { {0.06f,0.50f,0.69f,1}, {0.13f,0.30f,0.45f,1}, {0.19f,0.19f,0.38f,1},
+                   {0.52f,0.24f,0.53f,1}, {0.79f,0.27f,0.61f,1} }, 5 },
+  { "Marigold",  { {0.93f,0.69f,0.31f,1}, {0.82f,0.31f,0.37f,1}, {0.06f,0.49f,0.55f,1},
+                   {0.20f,0.40f,0.60f,1}, {0.03f,0.25f,0.37f,1} }, 5 },
+  { "Aurora",    { {0.05f,0.20f,0.32f,1}, {0.07f,0.42f,0.55f,1}, {0.18f,0.66f,0.62f,1},
+                   {0.46f,0.82f,0.55f,1}, {0.80f,0.92f,0.50f,1} }, 5 },
+  { "Nebula",    { {0.10f,0.12f,0.30f,1}, {0.30f,0.18f,0.52f,1}, {0.56f,0.22f,0.62f,1},
+                   {0.82f,0.28f,0.62f,1}, {0.98f,0.50f,0.66f,1} }, 5 },
+  { "Sunfall",   { {0.20f,0.06f,0.22f,1}, {0.55f,0.13f,0.28f,1}, {0.85f,0.32f,0.24f,1},
+                   {0.96f,0.58f,0.24f,1}, {0.99f,0.82f,0.42f,1} }, 5 },
 };
 static const int POX_BUILTIN_PALETTE_N =
     (int) (sizeof POX_BUILTIN_PALETTES / sizeof POX_BUILTIN_PALETTES[0]);
