@@ -2,6 +2,8 @@
  * (kgx-settings-page.c + style.css), rebased onto a `.preset-row` ancestor. */
 #include "pox-cells.h"
 
+#include <poxicle.h>   /* pox_palette_* — authoritative built-in palette data */
+
 static const char *CSS =
   /* compact spin: thin border, transparent, +/- chrome hidden */
   ".preset-row spinbutton {"
@@ -126,4 +128,111 @@ int
 pox_cycle_value (GtkWidget *btn)
 {
   return GPOINTER_TO_INT (g_object_get_data (G_OBJECT (btn), "val"));
+}
+
+/* ---- palette dropdown ---- */
+/* Dropdown rows map position -> stored value as (position - 1): row 0 is the
+ * "Solid" entry (value -1, use the per-app colour), rows 1..N are built-in
+ * palette ids 0..N-1. A custom factory previews each as a swatch strip + name. */
+
+/* "#rrggbb" markup of palette `id`'s colours as filled squares, or NULL for the
+ * Solid row (no preview). Caller frees. */
+static char *
+pal_swatch_markup (guint pos)
+{
+  if (pos == 0)
+    return NULL;   /* Solid: no preview strip */
+  PoxColor cs[POX_PALETTE_MAX];
+  int n = pox_palette_colors ((int) pos - 1, cs, POX_PALETTE_MAX);
+  GString *s = g_string_new (NULL);
+  for (int i = 0; i < n; i++)
+    g_string_append_printf (s, "<span foreground=\"#%02x%02x%02x\">\xe2\x96\xa0</span>",
+                            (int) (cs[i].r * 255 + 0.5f),
+                            (int) (cs[i].g * 255 + 0.5f),
+                            (int) (cs[i].b * 255 + 0.5f));
+  return g_string_free (s, FALSE);
+}
+
+static const char *
+pal_name (guint pos)
+{
+  if (pos == 0)
+    return "Solid";
+  const char *n = pox_palette_name ((int) pos - 1);
+  return n ? n : "?";
+}
+
+static void
+pal_setup (GtkSignalListItemFactory *f, GtkListItem *item, gpointer u)
+{
+  (void) f; (void) u;
+  GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 8);
+  GtkWidget *sw  = gtk_label_new (NULL);   /* swatch strip (markup) */
+  GtkWidget *nm  = gtk_label_new (NULL);   /* palette name */
+  gtk_widget_set_halign (nm, GTK_ALIGN_START);
+  gtk_box_append (GTK_BOX (box), sw);
+  gtk_box_append (GTK_BOX (box), nm);
+  gtk_list_item_set_child (item, box);
+}
+
+static void
+pal_bind (GtkSignalListItemFactory *f, GtkListItem *item, gpointer u)
+{
+  (void) f; (void) u;
+  guint pos = gtk_list_item_get_position (item);
+  GtkWidget *box = gtk_list_item_get_child (item);
+  GtkWidget *sw  = gtk_widget_get_first_child (box);
+  GtkWidget *nm  = gtk_widget_get_next_sibling (sw);
+  char *m = pal_swatch_markup (pos);
+  gtk_label_set_markup (GTK_LABEL (sw), m ? m : "");
+  gtk_widget_set_visible (sw, m != NULL);
+  g_free (m);
+  gtk_label_set_text (GTK_LABEL (nm), pal_name (pos));
+}
+
+GtkWidget *
+pox_palette_new (int value, const char *tooltip)
+{
+  /* Model length = Solid + every built-in palette. The factory renders by
+   * position, so the strings are just placeholders that set the row count. */
+  int count = pox_palette_count ();
+  const char **names = g_new0 (const char *, count + 2);
+  names[0] = "Solid";
+  for (int i = 0; i < count; i++)
+    names[i + 1] = pox_palette_name (i);
+  GtkStringList *model = gtk_string_list_new (names);
+  g_free (names);   /* gtk_string_list_new copies the strings */
+
+  GtkListItemFactory *fac = gtk_signal_list_item_factory_new ();
+  g_signal_connect (fac, "setup", G_CALLBACK (pal_setup), NULL);
+  g_signal_connect (fac, "bind",  G_CALLBACK (pal_bind),  NULL);
+
+  GtkWidget *dd = gtk_drop_down_new (G_LIST_MODEL (model), NULL);
+  gtk_drop_down_set_factory (GTK_DROP_DOWN (dd), fac);
+  g_object_unref (fac);
+  gtk_widget_add_css_class (dd, "flat");
+  pox_palette_set_value (dd, value);
+  if (tooltip)
+    gtk_widget_set_tooltip_text (dd, tooltip);
+  return dd;
+}
+
+int
+pox_palette_value (GtkWidget *dd)
+{
+  guint pos = gtk_drop_down_get_selected (GTK_DROP_DOWN (dd));
+  if (pos == GTK_INVALID_LIST_POSITION)
+    return 0;
+  return (int) pos - 1;   /* row 0 = Solid (-1) */
+}
+
+void
+pox_palette_set_value (GtkWidget *dd, int value)
+{
+  GListModel *m = gtk_drop_down_get_model (GTK_DROP_DOWN (dd));
+  guint n = m ? g_list_model_get_n_items (m) : 0;
+  int pos = value + 1;                 /* -1 (Solid) -> 0 */
+  if (pos < 0 || (guint) pos >= n)
+    pos = 1;                           /* fall back to the first palette (Muted) */
+  gtk_drop_down_set_selected (GTK_DROP_DOWN (dd), (guint) pos);
 }

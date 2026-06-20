@@ -28,6 +28,14 @@ constexpr qreal kBandMargin = 48.0;
 // idle grace). A Wake() D-Bus call un-parks it.
 constexpr int kStreamIdleGrace = 4;
 
+// Base window (logical ms) to hold an external stream's particles back after its
+// window starts un-minimizing, so the ring doesn't snap in at full frameGeometry
+// over the still-animating window (Magic Lamp / Squash). Scaled at runtime by the
+// compositor's animationTimeFactor() so it tracks the user's animation-speed
+// setting and collapses to ~0 when animations are effectively instant. Slightly
+// generous vs. the default minimize animation so the ring never appears mid-flight.
+constexpr int kUnminimizeGraceMs = 350;
+
 // Copy the latest COMPLETE frame from a producer's shared region into `out`,
 // surface-local coords (the caller offsets by the window rect). Returns true only
 // when a new, untorn frame was read; false when the producer is mid-write, has
@@ -141,6 +149,22 @@ bool PoxicleEffect::visible(KWin::EffectWindow *w) const
     return w && w->isOnCurrentDesktop() && !w->isMinimized();
 }
 
+// Apply a resolved rule's ambient/fireworks burst palette to an engine: a
+// built-in palette id, or -1 ("Solid") to sample the per-app colour as a
+// single-colour palette (falling back to the built-in default when no per-app
+// colour is set). Other emission kinds ignore the palette and keep using `color`.
+static void applyPalette(PoxEngine *e, const PoxResolved &r)
+{
+    if (r.palette < 0) {
+        if (r.color.a >= 0.0f)
+            pox_engine_set_palette_colors(e, &r.color, 1);
+        else
+            pox_engine_set_palette(e, 0);
+        return;
+    }
+    pox_engine_set_palette(e, r.palette);
+}
+
 void PoxicleEffect::maybeAttach(KWin::EffectWindow *w)
 {
     if (!eligible(w) || m_windows.count(w))
@@ -161,6 +185,7 @@ void PoxicleEffect::maybeAttach(KWin::EffectWindow *w)
     // Drive the preset's actual motion (corners/rotate/ping-pong/pulse-out loop;
     // ambient/fireworks use the burst fan). Must follow set_tunables.
     pox_engine_set_kind(fx.engine, r.kind, r.reverse, r.color);
+    applyPalette(fx.engine, r);
     m_windows.emplace(w, fx);
 
     KWin::effects->addRepaintFull();
@@ -363,6 +388,7 @@ void PoxicleEffect::pointActiveAt(KWin::EffectWindow *w)
     pox_engine_set_tunables(m_activeEngine, &m_activeResolved.tunables);
     pox_engine_set_kind(m_activeEngine, m_activeResolved.kind,
                         m_activeResolved.reverse, m_activeResolved.color);
+    applyPalette(m_activeEngine, m_activeResolved);
     const PoxColor c = m_activeColor.a >= 0.0f
         ? m_activeColor
         : PoxColor{0.55f, 0.78f, 1.0f, 1.0f};
@@ -478,7 +504,29 @@ void PoxicleEffect::prePaintScreen(KWin::ScreenPrePaintData &data,
         // so KWin can sleep until Wake() or a new frame.
         for (auto &kv : m_streams) {
             ExtStream &s = kv.second;
-            if (!s.window || !visible(s.window)) {
+            s.suppressed = false;
+            if (!s.window) {
+                s.instances.clear();
+                continue;
+            }
+
+            // Un-minimize edge (minimized -> not): isMinimized() flips back to
+            // false at the START of the restore, while the Magic Lamp / Squash
+            // animation is still playing. The PAINT_WINDOW_TRANSFORMED guard in
+            // paintWindow() does not fire for the lamp's non-affine vertex warp,
+            // so without this the ring would snap in at full frameGeometry over the
+            // still-animating window. Arm a short grace and hold it back instead;
+            // scaled by animationTimeFactor() so it tracks the user's animation
+            // speed (and is ~0 when animations are effectively instant).
+            const bool minimizedNow = s.window->isMinimized();
+            if (s.wasMinimized && !minimizedNow) {
+                s.suppressUntil = presentTime + std::chrono::milliseconds(
+                    int(kUnminimizeGraceMs * KWin::effects->animationTimeFactor()));
+            }
+            s.wasMinimized = minimizedNow;
+            s.suppressed = presentTime < s.suppressUntil;
+
+            if (!visible(s.window) || s.suppressed) {
                 s.instances.clear();
                 continue;
             }
@@ -541,6 +589,24 @@ void PoxicleEffect::paintWindow(const KWin::RenderTarget &renderTarget,
     // windows in front of it. (The old paintScreen() path drew every window's
     // particles above the whole scene, so they floated over everything.)
     KWin::effects->paintWindow(renderTarget, viewport, w, mask, deviceRegion, data);
+
+    // While another effect applies an AFFINE transform to this window — overview,
+    // desktop grid, Squash — our particles would be drawn at the settled
+    // frameGeometry, detached from the in-flight transform (a crisp rectangle of
+    // particles floating where the window WILL land). Skip them until it settles.
+    // Interactive move/resize is exempt: that is a pure translation we follow via
+    // data.translation() below. NB: the Magic Lamp un-minimize warp is non-affine
+    // and does NOT set this flag for us — that case is handled by the un-minimize
+    // grace below (and in prePaintScreen), not here.
+    if ((mask & PAINT_WINDOW_TRANSFORMED) && !w->isUserMove() && !w->isUserResize())
+        return;
+
+    // Hold every particle layer (per-app, overlay, and stream) for a streamed
+    // window still inside its un-minimize grace — prePaintScreen tracks the
+    // deadline and already clears the stream's own instances; this also keeps the
+    // focus overlay off it until the restore animation settles.
+    if (ExtStream *gs = streamFor(w); gs && gs->suppressed)
+        return;
 
     auto it = m_windows.find(w);
     const bool perApp = (it != m_windows.end() && !it->second.instances.empty());

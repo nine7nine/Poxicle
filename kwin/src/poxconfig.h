@@ -11,10 +11,14 @@
  *                   envCurve;releaseMode;shape;gap;thkAtk;thkRel;thkCurve;thkRelMode
  *   Rules         = StringList, each:
  *                   appId|preset|reverse|pColor|shape|gap|speed|thickness|tail|
- *                   atk|rel|relMode|thkAtk|thkRel|thkRelMode
+ *                   atk|rel|relMode|thkAtk|thkRel|thkRelMode|palette
  *   Active        = one rule for the focus-following "active window" target, in
  *                   the same field order as a Rules entry but with NO leading
  *                   appId (preset|reverse|pColor|...). Empty/"none" => disabled.
+ *
+ * `palette` is the ambient/fireworks burst-colour set: a built-in palette index
+ * (see pox_palette_count), or -1 to use the per-app `pColor` as a solid colour.
+ * Absent (older configs) => 0, the historical "Muted" look.
  *
  * Override sentinels match Chiguiro: -1 for shape/gap/release-modes, 0 for the
  * numeric (percent/pixel) fields. Numeric override units: speed/tail/atk/rel/
@@ -34,6 +38,7 @@ struct PoxResolved {
     PoxColor    color;           // a < 0 => no per-app color set (engine default)
     int         reverse = 0;     // 0 forward, 1 reverse, 2 loop (alternate)
     PoxKind     kind = POX_KIND_AMBIENT;  // emission pattern, derived from preset name
+    int         palette = 0;     // ambient/fireworks colours: built-in id, or -1 = use `color`
 };
 
 class PoxConfig
@@ -61,6 +66,7 @@ private:
         int      shape = -1, gap = -1, releaseMode = -1, thkReleaseMode = -1;
         int      speed = 0, thickness = 0, tail = 0, attack = 0, release = 0,
                  thkAttack = 0, thkRelease = 0;
+        int      palette = 0;     // ambient/fireworks palette id, or -1 = use `color`
     };
 
     // Parse one packed rule, reading the preset field at `base` (1 for a Rules

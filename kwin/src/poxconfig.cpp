@@ -167,6 +167,7 @@ PoxConfig::Rule PoxConfig::parseRule(const QStringList &f, int base)
     r.thkAttack      = asInt(f.value(base + 11),  0);
     r.thkRelease     = asInt(f.value(base + 12),  0);
     r.thkReleaseMode = asInt(f.value(base + 13), -1);
+    r.palette        = asInt(f.value(base + 14),  0);   // absent => 0 (Muted), -1 => use color
     return r;
 }
 
@@ -185,6 +186,7 @@ PoxResolved PoxConfig::resolveRule(const Rule &match) const
     out.tunables = m_presets.value(presetName);
     out.reverse = match.reverse;
     out.kind = kindForPreset(presetName);
+    out.palette = match.palette;
     if (match.hasColor)
         out.color = match.color;
 

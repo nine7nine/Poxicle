@@ -45,6 +45,9 @@ struct PoxEngine {
   double      os_start_s;      /* >0 = self-animating timeline active */
   double      os_duration_s;
 
+  PoxColor    palette[POX_PALETTE_MAX];  /* ambient/fireworks burst colours */
+  int         palette_n;       /* 0 => use the built-in muted default */
+
   int         kind;            /* PoxKind: emission pattern */
   int         reverse;         /* geometric kinds: current travel direction (0/1) */
   int         reverse_mode;    /* 0 fwd, 1 rev, 2 loop (alternate each cycle) */
@@ -71,13 +74,75 @@ static double rnd01(PoxEngine *e) { return (rnd(e) >> 8) * (1.0 / 16777216.0); }
 static int rnd_range(PoxEngine *e, int lo, int hi)
 { return hi <= lo ? lo : lo + (int) (rnd(e) % (uint32_t) (hi - lo)); }
 
-static PoxColor muted_color(PoxEngine *e)
+/* ---- colour palettes ---------------------------------------------------- */
+/* Built-in burst palettes for ambient/fireworks. Index 0 ("Muted") is the
+ * historical default, so an engine on the default palette looks unchanged.
+ * Ordered loosely by family (muted, warm, cool, green, vibrant, pastel, mono)
+ * so the configurator dropdown reads in coherent groups. */
+typedef struct { const char *name; PoxColor cols[POX_PALETTE_MAX]; int n; } PoxPalette;
+
+static const PoxPalette POX_BUILTIN_PALETTES[] = {
+  { "Muted",     { {0.85f,0.40f,0.75f,1}, {0.40f,0.60f,0.90f,1},
+                   {0.40f,0.80f,0.50f,1}, {0.95f,0.65f,0.35f,1} }, 4 },
+  { "Sunset",    { {1.00f,0.42f,0.42f,1}, {0.93f,0.35f,0.44f,1}, {0.95f,0.62f,0.30f,1},
+                   {0.98f,0.78f,0.31f,1}, {0.77f,0.27f,0.21f,1} }, 5 },
+  { "Ember",     { {0.42f,0.02f,0.06f,1}, {0.62f,0.01f,0.03f,1}, {0.82f,0.00f,0.00f,1},
+                   {0.91f,0.36f,0.02f,1}, {0.98f,0.64f,0.03f,1} }, 5 },
+  { "Autumn",    { {0.35f,0.18f,0.05f,1}, {0.50f,0.31f,0.14f,1}, {0.58f,0.40f,0.22f,1},
+                   {0.65f,0.54f,0.39f,1}, {0.71f,0.68f,0.56f,1} }, 5 },
+  { "Ocean",     { {0.00f,0.19f,0.29f,1}, {0.00f,0.47f,0.71f,1}, {0.00f,0.71f,0.85f,1},
+                   {0.56f,0.88f,0.94f,1}, {0.79f,0.94f,0.97f,1} }, 5 },
+  { "Glacier",   { {0.17f,0.49f,0.63f,1}, {0.27f,0.56f,0.69f,1}, {0.38f,0.65f,0.76f,1},
+                   {0.54f,0.76f,0.85f,1}, {0.66f,0.84f,0.90f,1} }, 5 },
+  { "Twilight",  { {0.14f,0.05f,0.30f,1}, {0.24f,0.04f,0.42f,1}, {0.35f,0.09f,0.60f,1},
+                   {0.48f,0.17f,0.75f,1}, {0.62f,0.31f,0.87f,1} }, 5 },
+  { "Forest",    { {0.03f,0.11f,0.08f,1}, {0.11f,0.26f,0.20f,1}, {0.18f,0.42f,0.31f,1},
+                   {0.25f,0.57f,0.42f,1}, {0.45f,0.78f,0.62f,1} }, 5 },
+  { "Moss",      { {0.20f,0.31f,0.25f,1}, {0.23f,0.35f,0.25f,1}, {0.35f,0.50f,0.34f,1},
+                   {0.64f,0.69f,0.54f,1}, {0.85f,0.84f,0.80f,1} }, 5 },
+  { "Neon",      { {1.00f,0.00f,0.43f,1}, {0.98f,0.34f,0.03f,1}, {1.00f,0.75f,0.04f,1},
+                   {0.51f,0.22f,0.93f,1}, {0.23f,0.53f,1.00f,1} }, 5 },
+  { "Pop",       { {0.98f,0.25f,0.27f,1}, {0.95f,0.45f,0.17f,1}, {0.97f,0.59f,0.12f,1},
+                   {0.56f,0.75f,0.43f,1}, {0.26f,0.67f,0.55f,1} }, 5 },
+  { "Candy",     { {1.00f,0.36f,0.56f,1}, {1.00f,0.59f,0.72f,1}, {1.00f,0.70f,0.78f,1},
+                   {1.00f,0.78f,0.87f,1}, {0.80f,0.71f,0.86f,1} }, 5 },
+  { "Rainbow",   { {0.91f,0.12f,0.18f,1}, {0.99f,0.55f,0.10f,1}, {0.98f,0.82f,0.16f,1},
+                   {0.18f,0.71f,0.34f,1}, {0.16f,0.45f,0.80f,1}, {0.60f,0.20f,0.72f,1} }, 6 },
+  { "Bloom",     { {0.80f,0.71f,0.86f,1}, {1.00f,0.78f,0.87f,1}, {1.00f,0.69f,0.80f,1},
+                   {0.74f,0.88f,1.00f,1}, {0.64f,0.82f,1.00f,1} }, 5 },
+  { "Sorbet",    { {0.98f,0.97f,0.80f,1}, {0.99f,0.89f,0.81f,1}, {1.00f,0.81f,0.82f,1},
+                   {0.95f,0.75f,0.91f,1}, {0.81f,0.73f,0.94f,1} }, 5 },
+  { "Mono Blue", { {0.01f,0.02f,0.37f,1}, {0.01f,0.24f,0.54f,1}, {0.00f,0.47f,0.71f,1},
+                   {0.00f,0.59f,0.78f,1}, {0.28f,0.79f,0.89f,1} }, 5 },
+  { "Mono Pink", { {0.35f,0.05f,0.13f,1}, {0.50f,0.06f,0.18f,1}, {0.64f,0.07f,0.24f,1},
+                   {0.79f,0.09f,0.29f,1}, {1.00f,0.30f,0.43f,1} }, 5 },
+};
+static const int POX_BUILTIN_PALETTE_N =
+    (int) (sizeof POX_BUILTIN_PALETTES / sizeof POX_BUILTIN_PALETTES[0]);
+
+int pox_palette_count(void) { return POX_BUILTIN_PALETTE_N; }
+
+const char *pox_palette_name(int id)
 {
-  static const PoxColor cs[] = {
-    { 0.85f, 0.40f, 0.75f, 1.0f }, { 0.40f, 0.60f, 0.90f, 1.0f },
-    { 0.40f, 0.80f, 0.50f, 1.0f }, { 0.95f, 0.65f, 0.35f, 1.0f },
-  };
-  return cs[rnd(e) % 4];
+  return (id >= 0 && id < POX_BUILTIN_PALETTE_N) ? POX_BUILTIN_PALETTES[id].name : NULL;
+}
+
+int pox_palette_colors(int id, PoxColor *out, int max)
+{
+  if (id < 0 || id >= POX_BUILTIN_PALETTE_N || !out || max <= 0) return 0;
+  int n = POX_BUILTIN_PALETTES[id].n;
+  if (n > max) n = max;
+  for (int i = 0; i < n; i++) out[i] = POX_BUILTIN_PALETTES[id].cols[i];
+  return n;
+}
+
+/* Pick the next burst colour: sample the engine's active palette, or fall back
+ * to the built-in Muted set when none has been assigned (palette_n == 0). */
+static PoxColor burst_palette_color(PoxEngine *e)
+{
+  if (e->palette_n > 0)
+    return e->palette[rnd(e) % (uint32_t) e->palette_n];
+  return POX_BUILTIN_PALETTES[0].cols[rnd(e) % (uint32_t) POX_BUILTIN_PALETTES[0].n];
 }
 
 /* ---- envelopes (ported) ---- */
@@ -267,7 +332,7 @@ static void ambient_fire(PoxEngine *e)
   e->ambient_due_s = 0.0;
   if (!e->ambient) return;
 
-  burst_begin(e, 0, rnd01(e) * e->perim, muted_color(e));
+  burst_begin(e, 0, rnd01(e) * e->perim, burst_palette_color(e));
 
   for (int i = 1; i < e->burst_count; i++) {
     if (burst_active(&e->bursts[i])) continue;
@@ -324,6 +389,22 @@ void pox_engine_set_ambient(PoxEngine *e, int enabled)
   e->ambient = !!enabled;
   if (e->ambient && e->ambient_due_s == 0.0)
     e->ambient_due_s = e->now_s + 0.05;
+}
+
+void pox_engine_set_palette_colors(PoxEngine *e, const PoxColor *cols, int n)
+{
+  if (!e) return;
+  if (!cols || n <= 0) { e->palette_n = 0; return; }   /* reset to built-in default */
+  if (n > POX_PALETTE_MAX) n = POX_PALETTE_MAX;
+  for (int i = 0; i < n; i++) e->palette[i] = cols[i];
+  e->palette_n = n;
+}
+
+void pox_engine_set_palette(PoxEngine *e, int id)
+{
+  PoxColor tmp[POX_PALETTE_MAX];
+  int n = pox_palette_colors(id, tmp, POX_PALETTE_MAX);
+  if (n > 0) pox_engine_set_palette_colors(e, tmp, n);
 }
 
 /* Per-kind loop duration, ms (matches kgx_edge_set_process_particle). */
@@ -556,7 +637,7 @@ size_t pox_engine_tick(PoxEngine *e, double dt, PoxInstance *out, size_t cap)
       ambient_fire(e);
     for (int i = 0; i < e->burst_count; i++)
       if (e->bursts[i].due_s > 0.0 && e->now_s >= e->bursts[i].due_s)
-        burst_begin(e, i, rnd01(e) * e->perim, muted_color(e));
+        burst_begin(e, i, rnd01(e) * e->perim, burst_palette_color(e));
     if (e->ambient_due_s == 0.0)
       ambient_schedule(e);
   }

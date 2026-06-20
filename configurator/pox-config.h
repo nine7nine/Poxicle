@@ -46,6 +46,7 @@ typedef struct {
   int   reverse;           /* 0 forward, 1 reverse, 2 loop (alternate) */
   int   shape, gap, release_mode, thk_release_mode;   /* -1 = inherit */
   int   speed, thickness, tail, attack, release, thk_attack, thk_release; /* 0 = inherit */
+  int   palette;           /* ambient/fireworks palette id, or -1 = use `color`; 0 = Muted */
 } PoxRule;
 
 void  pox_rule_free (PoxRule *r);

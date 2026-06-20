@@ -22,4 +22,12 @@ GtkWidget *pox_cycle_new (const char *const *labels, int n, int base,
 int  pox_cycle_value     (GtkWidget *btn);
 void pox_cycle_set_value (GtkWidget *btn, int value);
 
+/* Dropdown of the engine's built-in burst palettes (pox_palette_* in poxicle.h),
+ * each previewed as a coloured swatch strip + name, with a leading "Solid" entry.
+ * Stored value: a built-in palette id (0..pox_palette_count()-1), or -1 = "Solid"
+ * (sample the per-app colour). */
+GtkWidget *pox_palette_new       (int value, const char *tooltip);
+int        pox_palette_value     (GtkWidget *dd);
+void       pox_palette_set_value (GtkWidget *dd, int value);
+
 G_END_DECLS

@@ -88,6 +88,21 @@ typedef struct {
 /* Fill `t` with sensible defaults (matches the engine's ambient look). */
 void pox_tunables_default (PoxTunables *t);
 
+/* ---- colour palettes (ambient / fireworks burst colours) ---- */
+
+/* Max colours in any one palette. */
+#define POX_PALETTE_MAX 8
+
+/* Built-in named palettes the ambient/fireworks bursts can sample from. These
+ * are static data (no engine needed) so a configurator can list + preview them.
+ * Index 0 is "Muted" — the historical default look, so an engine left on the
+ * default palette behaves exactly as before. */
+int         pox_palette_count  (void);                 /* number of built-ins */
+const char *pox_palette_name   (int id);               /* display name, or NULL if out of range */
+/* Copy palette `id`'s colours into `out` (up to `max`); returns the count, 0 if
+ * `id` is out of range. */
+int         pox_palette_colors (int id, PoxColor *out, int max);
+
 /* ---- simulation engine ---- */
 
 typedef struct PoxEngine PoxEngine;
@@ -101,9 +116,19 @@ void pox_engine_set_surface  (PoxEngine *e, int width, int height, int scale);
 /* Tunables for the ambient/global stream. Copied; caller keeps ownership. */
 void pox_engine_set_tunables (PoxEngine *e, const PoxTunables *t);
 
-/* Ambient mode: when enabled, the engine continuously auto-fires muted-colour
- * bursts from random perimeter points (the default "alive" look). */
+/* Ambient mode: when enabled, the engine continuously auto-fires bursts from
+ * random perimeter points (the default "alive" look), coloured by the active
+ * palette (see pox_engine_set_palette). */
 void pox_engine_set_ambient (PoxEngine *e, int enabled);
+
+/* Choose which built-in palette (see pox_palette_count) the ambient/fireworks
+ * bursts sample. Out-of-range ids are ignored. Default is palette 0 ("Muted"). */
+void pox_engine_set_palette (PoxEngine *e, int id);
+
+/* Set an arbitrary burst palette directly (e.g. a single solid colour from a
+ * per-app override). Copies up to POX_PALETTE_MAX colours; n <= 0 resets to the
+ * built-in default. */
+void pox_engine_set_palette_colors (PoxEngine *e, const PoxColor *cols, int n);
 
 /* Select the emission pattern (see PoxKind). `reverse` sets travel direction for
  * the geometric kinds: 0 forward, 1 reverse, 2 loop (alternate direction on every

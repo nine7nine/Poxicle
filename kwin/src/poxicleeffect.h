@@ -93,6 +93,9 @@ private:
         KWin::EffectWindow      *window = nullptr;  // bound window (null = unbound)
         QRectF                   geom;          // bound window geometry (logical)
         std::vector<PoxInstance> instances;     // this frame, global logical coords
+        bool                     wasMinimized = false;   // previous frame's isMinimized()
+        std::chrono::milliseconds suppressUntil{0};      // hold particles until this present-time
+        bool                     suppressed = false;     // this frame: inside the un-minimize grace
     };
 
     bool eligible(KWin::EffectWindow *w) const;   // a window type we ever decorate

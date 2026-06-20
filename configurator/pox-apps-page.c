@@ -16,11 +16,11 @@ static const char *const g_shape[]  = { "—", "■", "●", "◆", "▶" };  /*
 static const char *const g_gap[]    = { "—", "□", "■" };                         /* base -1: inherit / 0=gapped / 1=solid */
 static const char *const g_rmode[]  = { "—", "U", "R", "S", "G", "A" };          /* base -1: inherit + modes */
 
-#define N_COLS 15
+#define N_COLS 16
 
 typedef struct {
   GtkWidget *app, *preset, *rev, *color, *shape, *gap,
-            *spd, *thk, *tail, *atk, *rel, *rls, *tatk, *trel, *trls;
+            *spd, *thk, *tail, *atk, *rel, *rls, *tatk, *trel, *trls, *palette;
   char      *color_hex;     /* "#rrggbb" or NULL = inherit */
   int        is_active;     /* the focus-following "Active window" row (no app id) */
 } RuleRow;
@@ -170,6 +170,10 @@ static void add_row(AppsPage *ap, const PoxRule *init, gboolean is_active)
   r->trls = pox_cycle_new(g_rmode, 6, -1, init ? init->thk_release_mode : -1, "tune-thk-rls", "Thk release mode (— inherits)");
   attach(ap, box, 14, r->trls);
 
+  r->palette = pox_palette_new(init ? init->palette : 0,
+                               "Ambient / fireworks colour theme (Solid = use the Color swatch)");
+  attach(ap, box, 15, r->palette);
+
   GtkWidget *lrow = gtk_list_box_row_new();
   gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(lrow), box);
   g_object_set_data_full(G_OBJECT(lrow), "rulerow", r, rule_row_free);
@@ -193,6 +197,7 @@ static void fill_rule_fields(RuleRow *r, PoxRule *out)
   out->release     = (int) gtk_spin_button_get_value(GTK_SPIN_BUTTON(r->rel));
   out->thk_attack  = (int) gtk_spin_button_get_value(GTK_SPIN_BUTTON(r->tatk));
   out->thk_release = (int) gtk_spin_button_get_value(GTK_SPIN_BUTTON(r->trel));
+  out->palette     = pox_palette_value(r->palette);
 }
 
 static PoxRule *row_to_rule(RuleRow *r)
@@ -341,7 +346,7 @@ pox_apps_page_new(PoxSavedCb cb, gpointer cb_data)
 
   static const char *const heads[N_COLS] = {
     "App", "Preset", "Rev", "Color", "Shape", "Gap", "Spd", "Thk", "Tail",
-    "Atk", "Rel", "Rls", "TAtk", "TRel", "TRls",
+    "Atk", "Rel", "Rls", "TAtk", "TRel", "TRls", "Palette",
   };
   GtkWidget *header = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
   gtk_widget_set_margin_start(header, 14);

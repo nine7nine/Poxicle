@@ -162,12 +162,13 @@ GPtrArray *pox_io_load_rules(void)
   char **lines = g_strsplit(raw, ",", -1);
   for (char **l = lines; *l; l++) {
     char **f = g_strsplit(*l, "|", -1);
-    if (g_strv_length(f) >= 2 && f[0][0]) {
+    guint nf = g_strv_length(f);
+    if (nf >= 2 && f[0][0]) {
       PoxRule *r = g_new0(PoxRule, 1);
       r->app_id  = g_strdup(g_strstrip(f[0]));
       r->preset  = g_strdup(g_strstrip(f[1]));
       r->reverse = as_int(f[2], 0);   /* 0 fwd, 1 rev, 2 loop */
-      const char *col = (g_strv_length(f) > 3) ? g_strstrip(f[3]) : "";
+      const char *col = (nf > 3) ? g_strstrip(f[3]) : "";
       r->color   = (*col) ? g_strdup(col) : NULL;
       r->shape          = as_int(f[4],  -1);
       r->gap            = as_int(f[5],  -1);
@@ -180,6 +181,7 @@ GPtrArray *pox_io_load_rules(void)
       r->thk_attack     = as_int(f[12],  0);
       r->thk_release    = as_int(f[13],  0);
       r->thk_release_mode = as_int(f[14], -1);
+      r->palette        = (nf > 15) ? as_int(f[15], 0) : 0;   /* absent => Muted */
       g_ptr_array_add(rules, r);
     }
     g_strfreev(f);
@@ -198,13 +200,14 @@ void pox_io_save_rules(GPtrArray *rules)
       continue;
     if (out->len)
       g_string_append_c(out, ',');
-    /* appId|preset|rev|color|shape|gap|speed|thk|tail|atk|rel|relMode|tAtk|tRel|tRelMode */
-    g_string_append_printf(out, "%s|%s|%d|%s|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d",
+    /* appId|preset|rev|color|shape|gap|speed|thk|tail|atk|rel|relMode|tAtk|tRel|tRelMode|palette */
+    g_string_append_printf(out, "%s|%s|%d|%s|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d",
                            r->app_id, r->preset ? r->preset : "ambient",
                            r->reverse, r->color ? r->color : "",
                            r->shape, r->gap, r->speed, r->thickness, r->tail,
                            r->attack, r->release, r->release_mode,
-                           r->thk_attack, r->thk_release, r->thk_release_mode);
+                           r->thk_attack, r->thk_release, r->thk_release_mode,
+                           r->palette);
   }
   write_key("Rules", out->str);
   g_string_free(out, TRUE);
@@ -222,7 +225,7 @@ PoxRule *pox_io_load_active(void)
   if (*raw) {
     char **f = g_strsplit(raw, "|", -1);
     guint nf = g_strv_length(f);
-    /* preset|rev|color|shape|gap|speed|thk|tail|atk|rel|relMode|tAtk|tRel|tRelMode */
+    /* preset|rev|color|shape|gap|speed|thk|tail|atk|rel|relMode|tAtk|tRel|tRelMode|palette */
     if (nf >= 1 && f[0][0]) {
       g_free(r->preset);
       r->preset = g_strdup(g_strstrip(f[0]));
@@ -242,6 +245,7 @@ PoxRule *pox_io_load_active(void)
       r->thk_attack     = as_int(f[11],  0);
       r->thk_release    = as_int(f[12],  0);
       r->thk_release_mode = as_int(f[13], -1);
+      r->palette        = (nf > 14) ? as_int(f[14], 0) : 0;   /* absent => Muted */
     }
     g_strfreev(f);
   }
@@ -252,12 +256,13 @@ PoxRule *pox_io_load_active(void)
 void pox_io_save_active(const PoxRule *r)
 {
   /* Same field order as a Rules entry but with NO leading app id. */
-  char *packed = g_strdup_printf("%s|%d|%s|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d",
+  char *packed = g_strdup_printf("%s|%d|%s|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d",
                                  r->preset ? r->preset : "none",
                                  r->reverse, r->color ? r->color : "",
                                  r->shape, r->gap, r->speed, r->thickness, r->tail,
                                  r->attack, r->release, r->release_mode,
-                                 r->thk_attack, r->thk_release, r->thk_release_mode);
+                                 r->thk_attack, r->thk_release, r->thk_release_mode,
+                                 r->palette);
   write_key("Active", packed);
   g_free(packed);
 }
