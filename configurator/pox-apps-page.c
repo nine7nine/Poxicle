@@ -128,8 +128,8 @@ static void add_row(AppsPage *ap, const PoxRule *init, gboolean is_active)
     attach(ap, box, 0, r->app);
   }
 
-  r->preset = pox_cycle_new(apps_presets, N_APPS_PRESETS, 0,
-                            init ? name_index(init->preset) : 0, NULL, "Preset");
+  r->preset = pox_preset_new(apps_presets, N_APPS_PRESETS,
+                             init ? name_index(init->preset) : 0, "Preset");
   attach(ap, box, 1, r->preset);
 
   r->rev = pox_cycle_new(g_rev, 3, 0, init ? init->reverse : 0, NULL,
@@ -184,7 +184,7 @@ static void add_row(AppsPage *ap, const PoxRule *init, gboolean is_active)
 /* Read the preset/overrides cells (everything except the app id) into out. */
 static void fill_rule_fields(RuleRow *r, PoxRule *out)
 {
-  out->preset  = g_strdup(apps_presets[pox_cycle_value(r->preset)]);
+  out->preset  = g_strdup(apps_presets[pox_preset_value(r->preset)]);
   out->reverse = pox_cycle_value(r->rev);
   out->color   = r->color_hex ? g_strdup(r->color_hex) : NULL;
   out->shape   = pox_cycle_value(r->shape);            /* base -1 → -1..3 */
@@ -228,7 +228,7 @@ static PoxRule *active_row_to_rule(RuleRow *r)
 static void seed_row(AppsPage *ap, const char *app_id)
 {
   PoxRule seed = { 0 };
-  seed.preset = (char *) apps_presets[pox_cycle_value(ap->default_preset)];
+  seed.preset = (char *) apps_presets[pox_preset_value(ap->default_preset)];
   seed.shape = seed.gap = seed.release_mode = seed.thk_release_mode = -1;
   seed.app_id = (char *) app_id;
   add_row(ap, &seed, FALSE);
@@ -302,7 +302,7 @@ static void on_apply(GtkButton *btn, gpointer data)
     pox_io_save_active(active);
     pox_rule_free(active);
   }
-  pox_io_save_default_preset(apps_presets[pox_cycle_value(ap->default_preset)]);
+  pox_io_save_default_preset(apps_presets[pox_preset_value(ap->default_preset)]);
   pox_io_reconfigure();
   if (ap->cb)
     ap->cb(ap->cb_data, "Apps saved");
@@ -328,8 +328,8 @@ pox_apps_page_new(PoxSavedCb cb, gpointer cb_data)
   gtk_widget_set_margin_start(top, 14);
   gtk_widget_set_margin_end(top, 14);
   gtk_box_append(GTK_BOX(top), gtk_label_new("New app preset:"));
-  ap->default_preset = pox_cycle_new(apps_presets, N_APPS_PRESETS, 0,
-                                     name_index(pox_io_load_default_preset()), NULL, NULL);
+  ap->default_preset = pox_preset_new(apps_presets, N_APPS_PRESETS,
+                                      name_index(pox_io_load_default_preset()), NULL);
   gtk_box_append(GTK_BOX(top), ap->default_preset);
   GtkWidget *spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   gtk_widget_set_hexpand(spacer, TRUE);

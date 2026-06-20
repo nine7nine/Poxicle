@@ -586,6 +586,14 @@ static void emit_overscroll(PoxEngine *e, PoxInstance *out, size_t *count, size_
   emit_segment(e, out, count, cap, v_head, POX_BASE_SEG, a, e->os_color, v_trail, tt, prog);
 }
 
+/* Stable pseudo-random in [0,1) from an integer key (sin hash) — used where a
+ * choice must be fixed for a whole loop cycle (e.g. laser's per-volley spot). */
+static double pox_hash01(unsigned n)
+{
+  double s = sin((double) n * 12.9898 + 78.233) * 43758.5453;
+  return s - floor(s);
+}
+
 /* Emit a uniform-alpha ring of blocks around the whole perimeter. Each block is
  * a 1-block segment, which sidesteps emit_segment's per-segment trailing fade —
  * that's what makes the ring uniform (used by breathe / strobe / the radar
@@ -716,19 +724,24 @@ static void emit_kind(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap)
     break;
   }
   case POX_KIND_LASER: {
-    /* Rapid-fire bolts streaming from one corner along the top edge, several in
-     * flight at once and fading as they travel. */
-    int    dir    = e->reverse ? -1 : +1;
-    double origin = e->reverse ? (w + h) : 0.0;
-    double range  = w;
-    const int N   = 4;
-    double bolt   = seg_full * 0.25;
+    /* A shooter: each loop cycle picks a fresh random spot + direction (stable
+     * for the whole cycle), then fires a short burst of bolts — pew pew pew —
+     * that shoot out HEAD-first and stay bright until they pop at the end. The
+     * next cycle relocates and fires again, so it reads as discrete volleys
+     * rather than a continuous streak. */
+    double origin = pox_hash01((unsigned) e->proc_cycle * 2u) * perim;
+    int    dir    = pox_hash01((unsigned) e->proc_cycle * 2u + 1u) < 0.5 ? +1 : -1;
+    double range  = (w < h ? w : h) * 0.9;     /* travel ~one edge */
+    const int N   = 3;
+    double bolt   = seg_full * 0.22;
     for (int k = 0; k < N; k++) {
-      double ph = fmod(p + (double) k / N, 1.0);
-      double d  = fmod(origin + dir * range * ph + 2.0 * perim, perim);
-      float  al = (1.0f - (float) ph) * 0.95f;
+      double tk = (double) k * 0.16;           /* staggered fire times */
+      double lk = (p - tk) / 0.42;             /* this bolt's own 0..1 flight */
+      if (lk < 0.0 || lk > 1.0) continue;      /* not fired yet / already gone */
+      double d  = fmod(origin + dir * range * lk + 2.0 * perim, perim);
+      float  al = (lk < 0.8) ? 0.95f : 0.95f * (float) ((1.0 - lk) / 0.2);  /* bright, pop at end */
       emit_segment(e, out, count, cap, d, bolt, al,
-                   preset_palette_color(e, k, e->proc_color), -dir, pt, ph);
+                   preset_palette_color(e, k, e->proc_color), -dir, pt, lk);
     }
     break;
   }
@@ -753,13 +766,28 @@ static void emit_kind(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap)
     break;
   }
   case POX_KIND_SPINNER: {
-    /* A single arc that rotates while its length grows mid-lap and shrinks at the
-     * lap boundaries — the Material indeterminate-spinner read. */
-    int    dir  = e->reverse ? -1 : +1;
-    double head = fmod(dir * perim * p + 2.0 * perim, perim);
-    double arc  = seg_full * (0.2 + 1.2 * sin(3.141592653589793 * p));
-    if (arc < seg_full * 0.2) arc = seg_full * 0.2;
-    emit_segment(e, out, count, cap, head, arc, 0.85f, col_cycle, -dir, pt, p);
+    /* A loader arc that grows from a point (tail anchored, head advances), then
+     * retracts to a point at the far end (head anchored, tail catches up) — and
+     * the next cycle resumes from exactly that far point, so it finishes cleanly
+     * and restarts in place instead of jumping. Walks ~one arc per cycle. */
+    int    dir    = e->reverse ? -1 : +1;
+    double maxarc = seg_full * 1.6;
+    double base   = dir * (double) e->proc_cycle * maxarc;
+    double head, tail;
+    if (p < 0.5) {                       /* grow: tail anchored, head advances */
+      double q = p * 2.0, eq = 1.0 - (1.0 - q) * (1.0 - q) * (1.0 - q);
+      tail = base;
+      head = base + dir * maxarc * eq;
+    } else {                             /* shrink: head anchored, tail catches up */
+      double q = (p - 0.5) * 2.0, eq = 1.0 - (1.0 - q) * (1.0 - q) * (1.0 - q);
+      head = base + dir * maxarc;
+      tail = base + dir * maxarc * eq;
+    }
+    double arc = fabs(head - tail);
+    if (arc < 1.0) arc = 1.0;
+    double hd = fmod(head, perim);
+    if (hd < 0.0) hd += perim;
+    emit_segment(e, out, count, cap, hd, arc, 0.85f, col_cycle, -dir, pt, p);
     break;
   }
   case POX_KIND_RIPPLE: {
@@ -796,15 +824,16 @@ static void emit_kind(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap)
     break;
   }
   case POX_KIND_SPREAD: {
-    /* A repeating volley: pairs of bolts fan out from the top centre at
-     * staggered speeds, fading as they fly, re-fired each cycle. */
+    /* A repeating shotgun volley: N bolt-pairs leave one fixed point together and
+     * fan out both ways at staggered speeds, staying bright so the point of
+     * origin reads clearly, then popping at the end before the next volley. */
     double origin = w / 2.0;
     const int N = 4;
-    double bolt = seg_full * 0.3;
-    float  al   = (1.0f - (float) p) * 0.9f;
+    double bolt = seg_full * 0.28;
+    float  al   = (p < 0.85) ? 0.9f : 0.9f * (float) ((1.0 - p) / 0.15);
     for (int k = 0; k < N; k++) {
-      double sk = (double) (k + 1) / N;
-      double spread = (perim / 3.0) * sk * p;
+      double sk = 0.45 + 0.55 * (double) k / (N - 1);   /* staggered speeds */
+      double spread = (perim / 2.8) * sk * p;
       double lh = fmod(origin - spread + 2.0 * perim, perim);
       double rh = fmod(origin + spread, perim);
       emit_segment(e, out, count, cap, lh, bolt, al, preset_palette_color(e, k, e->proc_color), +1, pt, p);

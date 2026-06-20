@@ -315,3 +315,37 @@ pox_palette_set_value (GtkWidget *dd, int value)
     pos = 1;                           /* fall back to the first palette (Muted) */
   gtk_drop_down_set_selected (GTK_DROP_DOWN (dd), (guint) pos);
 }
+
+/* ---- plain text dropdown (preset picker) ---- */
+
+GtkWidget *
+pox_preset_new (const char *const *labels, int n, int value, const char *tooltip)
+{
+  GtkStringList *model = gtk_string_list_new (NULL);
+  for (int i = 0; i < n; i++)
+    gtk_string_list_append (model, labels[i]);
+
+  GtkWidget *dd = gtk_drop_down_new (G_LIST_MODEL (model), NULL);
+  gtk_widget_add_css_class (dd, "flat");
+  pox_preset_set_value (dd, value);
+  if (tooltip)
+    gtk_widget_set_tooltip_text (dd, tooltip);
+  return dd;
+}
+
+int
+pox_preset_value (GtkWidget *dd)
+{
+  guint pos = gtk_drop_down_get_selected (GTK_DROP_DOWN (dd));
+  return (pos == GTK_INVALID_LIST_POSITION) ? 0 : (int) pos;
+}
+
+void
+pox_preset_set_value (GtkWidget *dd, int value)
+{
+  GListModel *m = gtk_drop_down_get_model (GTK_DROP_DOWN (dd));
+  guint n = m ? g_list_model_get_n_items (m) : 0;
+  if (value < 0 || (guint) value >= n)
+    value = 0;
+  gtk_drop_down_set_selected (GTK_DROP_DOWN (dd), (guint) value);
+}
