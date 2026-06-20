@@ -148,23 +148,23 @@ static void add_row(AppsPage *ap, const PoxRule *init, gboolean is_active)
   r->gap = pox_cycle_new(g_gap, 3, -1, init ? init->gap : -1, "tune-gap", "Gap (— inherits)");
   attach(ap, box, 5, r->gap);
 
-  r->spd  = pox_spin_new(0, 300, 1, 0, init ? init->speed : 0,     TRUE, "Speed % (0 inherits)");
+  r->spd  = pox_spin_new(0, 800, 1, 0, init ? init->speed : 0,     TRUE, "Speed % (0 inherits)");
   attach(ap, box, 6, r->spd);
-  r->thk  = pox_spin_new(0, 40,  1, 0, init ? init->thickness : 0, TRUE, "Thickness px (0 inherits)");
+  r->thk  = pox_spin_new(0, 100, 1, 0, init ? init->thickness : 0, TRUE, "Thickness px (0 inherits)");
   attach(ap, box, 7, r->thk);
-  r->tail = pox_spin_new(0, 300, 1, 0, init ? init->tail : 0,      TRUE, "Tail % (0 inherits)");
+  r->tail = pox_spin_new(0, 1000, 1, 0, init ? init->tail : 0,     TRUE, "Tail % (0 inherits)");
   attach(ap, box, 8, r->tail);
-  r->atk  = pox_spin_new(0, 50,  1, 0, init ? init->attack : 0,    TRUE, "Attack % (0 inherits)");
+  r->atk  = pox_spin_new(0, 100, 1, 0, init ? init->attack : 0,    TRUE, "Attack % (0 inherits)");
   attach(ap, box, 9, r->atk);
-  r->rel  = pox_spin_new(0, 50,  1, 0, init ? init->release : 0,   TRUE, "Release % (0 inherits)");
+  r->rel  = pox_spin_new(0, 100, 1, 0, init ? init->release : 0,   TRUE, "Release % (0 inherits)");
   attach(ap, box, 10, r->rel);
 
   r->rls = pox_cycle_new(g_rmode, 6, -1, init ? init->release_mode : -1, "tune-rls", "Release mode (— inherits)");
   attach(ap, box, 11, r->rls);
 
-  r->tatk = pox_spin_new(0, 50, 1, 0, init ? init->thk_attack : 0,  TRUE, "Thk attack % (0 inherits)");
+  r->tatk = pox_spin_new(0, 100, 1, 0, init ? init->thk_attack : 0,  TRUE, "Thk attack % (0 inherits)");
   attach(ap, box, 12, r->tatk);
-  r->trel = pox_spin_new(0, 50, 1, 0, init ? init->thk_release : 0, TRUE, "Thk release % (0 inherits)");
+  r->trel = pox_spin_new(0, 100, 1, 0, init ? init->thk_release : 0, TRUE, "Thk release % (0 inherits)");
   attach(ap, box, 13, r->trel);
 
   r->trls = pox_cycle_new(g_rmode, 6, -1, init ? init->thk_release_mode : -1, "tune-thk-rls", "Thk release mode (— inherits)");
@@ -360,6 +360,8 @@ pox_apps_page_new(PoxSavedCb cb, gpointer cb_data)
   }
 
   GtkWidget *inner = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+  gtk_widget_set_halign(inner, GTK_ALIGN_CENTER);   /* float the table in the window */
+  gtk_widget_set_valign(inner, GTK_ALIGN_CENTER);
   gtk_widget_set_margin_top(inner, 6);
   gtk_widget_set_margin_bottom(inner, 12);
   gtk_widget_set_margin_start(inner, 14);

@@ -18,11 +18,15 @@ on_saved (gpointer user_data, const char *msg)
 static void
 activate (GtkApplication *app, gpointer user_data)
 {
+  /* Force the dark variant so our glass styling never sits on a light system
+   * theme (which would bleed light backgrounds + the system accent in). */
+  adw_style_manager_set_color_scheme (adw_style_manager_get_default (),
+                                      ADW_COLOR_SCHEME_FORCE_DARK);
   pox_load_css ();
 
   GtkWidget *win = adw_application_window_new (app);
   gtk_window_set_title (GTK_WINDOW (win), "Poxicle Particles");
-  gtk_window_set_default_size (GTK_WINDOW (win), 940, 640);
+  gtk_window_set_default_size (GTK_WINDOW (win), 1160, 820);
 
   GtkWidget *overlay = adw_toast_overlay_new ();
 

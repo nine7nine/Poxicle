@@ -26,19 +26,19 @@ typedef struct {
 } ColDesc;
 
 static const ColDesc cols[N_FIELDS] = {
-  [F_SPEED]  = { "Spd",   "Speed multiplier",       FALSE, NULL,0,0,NULL, 0.1, 3.0, 0.1, 1 },
-  [F_THK]    = { "Thk",   "Block thickness (px)",   FALSE, NULL,0,0,NULL, 2,   40,  1,   0 },
-  [F_TAIL]   = { "Tail",  "Tail length multiplier", FALSE, NULL,0,0,NULL, 0.1, 3.0, 0.1, 1 },
-  [F_PDEP]   = { "P.Dep", "Shimmer depth",          FALSE, NULL,0,0,NULL, 0.0, 1.0, 0.05,2 },
-  [F_PSPD]   = { "P.Spd", "Shimmer speed",          FALSE, NULL,0,0,NULL, 0.1, 5.0, 0.1, 1 },
-  [F_ATK]    = { "Atk",   "Envelope attack",        FALSE, NULL,0,0,NULL, 0.0, 0.5, 0.05,2 },
-  [F_REL]    = { "Rel",   "Envelope release",       FALSE, NULL,0,0,NULL, 0.0, 0.5, 0.05,2 },
+  [F_SPEED]  = { "Spd",   "Speed multiplier",       FALSE, NULL,0,0,NULL, 0.1, 8.0,  0.1, 1 },
+  [F_THK]    = { "Thk",   "Block thickness (px)",   FALSE, NULL,0,0,NULL, 2,   100,  1,   0 },
+  [F_TAIL]   = { "Tail",  "Tail length multiplier", FALSE, NULL,0,0,NULL, 0.1, 10.0, 0.1, 1 },
+  [F_PDEP]   = { "P.Dep", "Shimmer depth",          FALSE, NULL,0,0,NULL, 0.0, 1.0,  0.05,2 },
+  [F_PSPD]   = { "P.Spd", "Shimmer speed",          FALSE, NULL,0,0,NULL, 0.1, 10.0, 0.1, 1 },
+  [F_ATK]    = { "Atk",   "Envelope attack",        FALSE, NULL,0,0,NULL, 0.0, 1.0,  0.05,2 },
+  [F_REL]    = { "Rel",   "Envelope release",       FALSE, NULL,0,0,NULL, 0.0, 1.0,  0.05,2 },
   [F_CURVE]  = { "Crv",   "Envelope curve",         TRUE, g_curve, 3, 1, "tune-curve",   0,0,0,0 },
   [F_RMODE]  = { "Rls",   "Release mode (U/R/S)",   TRUE, g_rmode, 3, 0, "tune-rls",     0,0,0,0 },
   [F_SHAPE]  = { "Shape", "Particle shape",         TRUE, g_shape, 4, 0, "tune-shape",   0,0,0,0 },
   [F_GAP]    = { "Gap",   "Solid / gapped",         TRUE, g_gap,   2, 0, "tune-gap",     0,0,0,0 },
-  [F_TATK]   = { "T.Atk", "Thickness attack",       FALSE, NULL,0,0,NULL, 0.0, 0.5, 0.05,2 },
-  [F_TREL]   = { "T.Rel", "Thickness release",      FALSE, NULL,0,0,NULL, 0.0, 0.5, 0.05,2 },
+  [F_TATK]   = { "T.Atk", "Thickness attack",       FALSE, NULL,0,0,NULL, 0.0, 1.0,  0.05,2 },
+  [F_TREL]   = { "T.Rel", "Thickness release",      FALSE, NULL,0,0,NULL, 0.0, 1.0,  0.05,2 },
   [F_TCURVE] = { "T.Crv", "Thickness curve",        TRUE, g_curve, 3, 1, "tune-curve",   0,0,0,0 },
   [F_TRMODE] = { "T.Rls", "Thickness release mode", TRUE, g_rmode, 5, 0, "tune-thk-rls", 0,0,0,0 },
 };
@@ -107,6 +107,8 @@ pox_presets_page_new(PoxSavedCb cb, gpointer cb_data)
 
   GtkWidget *grid = gtk_grid_new();
   gtk_widget_add_css_class(grid, "preset-row");
+  gtk_widget_set_halign(grid, GTK_ALIGN_CENTER);   /* float the table in the window */
+  gtk_widget_set_valign(grid, GTK_ALIGN_CENTER);
   gtk_grid_set_row_spacing(GTK_GRID(grid), 5);
   gtk_grid_set_column_spacing(GTK_GRID(grid), 8);
   gtk_widget_set_margin_top(grid, 14);
