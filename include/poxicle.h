@@ -88,15 +88,16 @@ typedef struct {
 /* Fill `t` with sensible defaults (matches the engine's ambient look). */
 void pox_tunables_default (PoxTunables *t);
 
-/* ---- colour palettes (ambient / fireworks burst colours) ---- */
+/* ---- colour palettes (burst + particle-preset colours) ---- */
 
 /* Max colours in any one palette. */
 #define POX_PALETTE_MAX 8
 
-/* Built-in named palettes the ambient/fireworks bursts can sample from. These
- * are static data (no engine needed) so a configurator can list + preview them.
- * Index 0 is "Muted" — the historical default look, so an engine left on the
- * default palette behaves exactly as before. */
+/* Built-in named palettes every emission kind can sample from — ambient/fireworks
+ * bursts per burst, and the geometric/scroll presets per segment or loop cycle.
+ * These are static data (no engine needed) so a configurator can list + preview
+ * them. Index 0 is "Muted" — the historical default; ids are append-only so a
+ * stored palette index keeps pointing at the same colours across releases. */
 int         pox_palette_count  (void);                 /* number of built-ins */
 const char *pox_palette_name   (int id);               /* display name, or NULL if out of range */
 /* Copy palette `id`'s colours into `out` (up to `max`); returns the count, 0 if
@@ -121,8 +122,9 @@ void pox_engine_set_tunables (PoxEngine *e, const PoxTunables *t);
  * palette (see pox_engine_set_palette). */
 void pox_engine_set_ambient (PoxEngine *e, int enabled);
 
-/* Choose which built-in palette (see pox_palette_count) the ambient/fireworks
- * bursts sample. Out-of-range ids are ignored. Default is palette 0 ("Muted"). */
+/* Choose which built-in palette (see pox_palette_count) every emission kind
+ * samples — bursts per burst, geometric/scroll presets per segment or loop
+ * cycle. Out-of-range ids are ignored. Default is palette 0 ("Muted"). */
 void pox_engine_set_palette (PoxEngine *e, int id);
 
 /* Set an arbitrary burst palette directly (e.g. a single solid colour from a

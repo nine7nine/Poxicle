@@ -55,8 +55,9 @@ struct PoxEngine {
   double      proc_start_s;
   double      proc_duration_s;
   int         proc_linear;     /* linear vs ease-out-cubic progress */
-  PoxColor    proc_color;      /* tint for geometric / scroll kinds */
+  PoxColor    proc_color;      /* solid tint for geometric / scroll kinds (palette "Solid") */
   PoxTunables proc_tune;       /* tunables snapshot taken at set_kind time */
+  int         proc_cycle;      /* loop counter; advances the palette colour per cycle */
 
   double      now_s;
   uint32_t    rng;
@@ -116,6 +117,21 @@ static const PoxPalette POX_BUILTIN_PALETTES[] = {
                    {0.00f,0.59f,0.78f,1}, {0.28f,0.79f,0.89f,1} }, 5 },
   { "Mono Pink", { {0.35f,0.05f,0.13f,1}, {0.50f,0.06f,0.18f,1}, {0.64f,0.07f,0.24f,1},
                    {0.79f,0.09f,0.29f,1}, {1.00f,0.30f,0.43f,1} }, 5 },
+  /* Soft/analogous additions — adjacent hues, low saturation spread, no opposing
+   * colours. Appended (not slotted into the family groups above) so existing
+   * stored palette ids stay stable. */
+  { "Dusk",      { {0.30f,0.31f,0.46f,1}, {0.38f,0.36f,0.55f,1}, {0.47f,0.43f,0.63f,1},
+                   {0.57f,0.52f,0.71f,1}, {0.69f,0.65f,0.80f,1} }, 5 },
+  { "Slate",     { {0.28f,0.34f,0.42f,1}, {0.36f,0.43f,0.52f,1}, {0.46f,0.54f,0.63f,1},
+                   {0.58f,0.65f,0.74f,1}, {0.72f,0.78f,0.85f,1} }, 5 },
+  { "Seafoam",   { {0.27f,0.49f,0.46f,1}, {0.36f,0.59f,0.55f,1}, {0.48f,0.69f,0.64f,1},
+                   {0.62f,0.79f,0.73f,1}, {0.77f,0.88f,0.82f,1} }, 5 },
+  { "Lilac",     { {0.55f,0.44f,0.60f,1}, {0.64f,0.52f,0.68f,1}, {0.74f,0.62f,0.76f,1},
+                   {0.83f,0.72f,0.82f,1}, {0.90f,0.81f,0.87f,1} }, 5 },
+  { "Sand",      { {0.55f,0.45f,0.33f,1}, {0.67f,0.56f,0.42f,1}, {0.78f,0.68f,0.53f,1},
+                   {0.87f,0.79f,0.65f,1}, {0.93f,0.88f,0.77f,1} }, 5 },
+  { "Clay",      { {0.55f,0.34f,0.27f,1}, {0.66f,0.43f,0.34f,1}, {0.76f,0.53f,0.43f,1},
+                   {0.84f,0.64f,0.54f,1}, {0.90f,0.76f,0.67f,1} }, 5 },
 };
 static const int POX_BUILTIN_PALETTE_N =
     (int) (sizeof POX_BUILTIN_PALETTES / sizeof POX_BUILTIN_PALETTES[0]);
@@ -143,6 +159,18 @@ static PoxColor burst_palette_color(PoxEngine *e)
   if (e->palette_n > 0)
     return e->palette[rnd(e) % (uint32_t) e->palette_n];
   return POX_BUILTIN_PALETTES[0].cols[rnd(e) % (uint32_t) POX_BUILTIN_PALETTES[0].n];
+}
+
+/* Pick a palette colour for a geometric/scroll preset segment. `key` selects the
+ * colour deterministically (per-segment index for multi-arm kinds, per-cycle for
+ * single-arm) so the look is stable frame-to-frame, not strobing. The "Solid"
+ * opt-out resolves to a 1-colour palette upstream, so it lands here and returns
+ * that single colour; `fallback` covers the no-palette-assigned case. */
+static PoxColor preset_palette_color(const PoxEngine *e, int key, PoxColor fallback)
+{
+  if (e->palette_n > 0)
+    return e->palette[((unsigned) key) % (unsigned) e->palette_n];
+  return fallback;
 }
 
 /* ---- envelopes (ported) ---- */
@@ -433,6 +461,7 @@ void pox_engine_set_kind(PoxEngine *e, PoxKind kind, int reverse, PoxColor color
   /* a < 0 sentinel => no per-app color set; use a cool default tone. */
   e->proc_color = (color.a >= 0.0f) ? color
                                     : (PoxColor){ 0.55f, 0.78f, 1.0f, 1.0f };
+  e->proc_cycle = 0;   /* restart palette stepping for this (re)attach */
 
   const int geometric = (kind == POX_KIND_CORNERS  || kind == POX_KIND_PULSE_OUT ||
                          kind == POX_KIND_ROTATE   || kind == POX_KIND_PING_PONG);
@@ -528,7 +557,11 @@ static void emit_kind(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap)
   float  a = env * 0.8f;
   double seg_full = POX_BASE_SEG * pt->tail_length * 2.0;
   double tail_env, seg;
-  PoxColor col = e->proc_color;
+  /* Geometric presets honour the active palette: multi-arm kinds (corners,
+   * pulse-out) colour each arm by its segment index; single-arm kinds (rotate,
+   * ping-pong) step one palette colour per loop cycle. "Solid" is a 1-colour
+   * palette, so this transparently collapses back to the per-app proc_color. */
+  PoxColor col_cycle = preset_palette_color(e, e->proc_cycle, e->proc_color);
 
   /* Tail envelope: rotate keeps a full tail (always in motion); retract pulls
    * the tail back faster than alpha fades; everything else grows on attack. */
@@ -553,10 +586,10 @@ static void emit_kind(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap)
     a_ccw = fmod(corner_a - travel + perim * 2.0, perim);
     b_cw  = fmod(corner_b + travel, perim);
     b_ccw = fmod(corner_b - travel + perim * 2.0, perim);
-    emit_segment(e, out, count, cap, a_cw,  clamped_seg, a, col, -1, pt, p);
-    emit_segment(e, out, count, cap, a_ccw, clamped_seg, a, col, +1, pt, p);
-    emit_segment(e, out, count, cap, b_cw,  clamped_seg, a, col, -1, pt, p);
-    emit_segment(e, out, count, cap, b_ccw, clamped_seg, a, col, +1, pt, p);
+    emit_segment(e, out, count, cap, a_cw,  clamped_seg, a, preset_palette_color(e, 0, e->proc_color), -1, pt, p);
+    emit_segment(e, out, count, cap, a_ccw, clamped_seg, a, preset_palette_color(e, 1, e->proc_color), +1, pt, p);
+    emit_segment(e, out, count, cap, b_cw,  clamped_seg, a, preset_palette_color(e, 2, e->proc_color), -1, pt, p);
+    emit_segment(e, out, count, cap, b_ccw, clamped_seg, a, preset_palette_color(e, 3, e->proc_color), +1, pt, p);
     break;
   }
   case POX_KIND_PULSE_OUT: {
@@ -566,8 +599,8 @@ static void emit_kind(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap)
     clamped_seg = seg < spread ? seg : spread;
     left_head  = fmod(center - spread + perim, perim);
     right_head = fmod(center + spread, perim);
-    emit_segment(e, out, count, cap, left_head,  clamped_seg, a, col, +1, pt, p);
-    emit_segment(e, out, count, cap, right_head, clamped_seg, a, col, -1, pt, p);
+    emit_segment(e, out, count, cap, left_head,  clamped_seg, a, preset_palette_color(e, 0, e->proc_color), +1, pt, p);
+    emit_segment(e, out, count, cap, right_head, clamped_seg, a, preset_palette_color(e, 1, e->proc_color), -1, pt, p);
     break;
   }
   case POX_KIND_ROTATE: {
@@ -589,7 +622,7 @@ static void emit_kind(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap)
     clamped_seg = (lap_seg * 2.0) < travel ? (lap_seg * 2.0) : travel;
     offset = (p >= 0.5) ? perim / 2.0 : 0.0;
     head   = fmod(dir * travel + offset + perim, perim);
-    emit_segment(e, out, count, cap, head, clamped_seg, lap_a, col, trail, pt, half_p);
+    emit_segment(e, out, count, cap, head, clamped_seg, lap_a, col_cycle, trail, pt, half_p);
     break;
   }
   case POX_KIND_PING_PONG: {
@@ -616,7 +649,7 @@ static void emit_kind(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap)
       pos   = fmod(edge_start + w * (1.0 - half_p) + perim, perim);
       trail = +1;
     }
-    emit_segment(e, out, count, cap, pos, clamped_seg, pp_a, col, trail, pt, half_p);
+    emit_segment(e, out, count, cap, pos, clamped_seg, pp_a, col_cycle, trail, pt, half_p);
     break;
   }
   default:
@@ -658,6 +691,7 @@ size_t pox_engine_tick(PoxEngine *e, double dt, PoxInstance *out, size_t cap)
     if (raw >= 1.0) {                          /* re-arm: loop the animation */
       e->proc_start_s  = e->now_s;
       e->proc_progress = 0.0;
+      e->proc_cycle++;                         /* step the palette colour each cycle */
       if (e->reverse_mode == 2)                /* loop: alternate direction */
         e->reverse = !e->reverse;
     } else {
@@ -668,9 +702,11 @@ size_t pox_engine_tick(PoxEngine *e, double dt, PoxInstance *out, size_t cap)
   }
   emit_kind(e, out, &count, cap);
 
-  /* scroll kind: keep re-firing an overscroll beam so it reads as a loop */
+  /* scroll kind: keep re-firing an overscroll beam so it reads as a loop, each
+   * fire stepping the palette (host-driven overscroll keeps its own colour). */
   if (e->kind == POX_KIND_SCROLL && e->os_edge < 0)
-    pox_engine_fire_overscroll(e, POX_EDGE_TOP, e->proc_color);
+    pox_engine_fire_overscroll(e, POX_EDGE_TOP,
+                               preset_palette_color(e, e->proc_cycle++, e->proc_color));
 
   /* self-animating overscroll timeline */
   if (e->os_start_s > 0.0 && e->os_edge >= 0) {

@@ -149,10 +149,12 @@ bool PoxicleEffect::visible(KWin::EffectWindow *w) const
     return w && w->isOnCurrentDesktop() && !w->isMinimized();
 }
 
-// Apply a resolved rule's ambient/fireworks burst palette to an engine: a
-// built-in palette id, or -1 ("Solid") to sample the per-app colour as a
-// single-colour palette (falling back to the built-in default when no per-app
-// colour is set). Other emission kinds ignore the palette and keep using `color`.
+// Apply a resolved rule's burst/particle palette to an engine: a built-in
+// palette id, or -1 ("Solid") to sample the per-app colour as a single-colour
+// palette (falling back to the built-in default when no per-app colour is set).
+// Every emission kind honours this now — ambient/fireworks bursts sample it per
+// burst, and the geometric/scroll presets per segment or loop cycle; "Solid"
+// collapses to the single per-app `color` everywhere.
 static void applyPalette(PoxEngine *e, const PoxResolved &r)
 {
     if (r.palette < 0) {
