@@ -2,10 +2,11 @@
 #include "poxconfig.h"
 
 #include <QColor>
+#include <QStandardPaths>
 #include <QStringList>
 
+#include <KConfig>
 #include <KConfigGroup>
-#include <KSharedConfig>
 
 namespace {
 
@@ -130,8 +131,13 @@ void parsePreset(const QString &packed, PoxTunables &t)
 
 void PoxConfig::load()
 {
-    KConfigGroup g = KSharedConfig::openConfig(QStringLiteral("kwinrc"))
-                         ->group(QStringLiteral("Effect-poxicle_kwin"));
+    // DE-neutral config written by poxicle-config (GKeyFile ini). A fresh
+    // non-shared KConfig reads the file each load(), so reconfigure() picks up
+    // the latest save instead of a cached copy.
+    const QString path = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+                         + QLatin1String("/poxicle/poxicle.conf");
+    KConfig cfg(path, KConfig::SimpleConfig);
+    KConfigGroup g = cfg.group(QStringLiteral("poxicle"));
 
     // Presets: seed from the built-in defaults, then apply any stored overrides.
     m_presets.clear();
