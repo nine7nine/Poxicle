@@ -51,6 +51,23 @@ typedef struct {
 
 void  pox_rule_free (PoxRule *r);
 
+/* GUI-only appearance for the configurator's OWN window (glass tint / opacity /
+ * accent) — persisted in a separate [Configurator] group of poxicle.conf, which
+ * the effect and the GNOME extension ignore. Defaults reproduce the built-in
+ * glass look so nothing changes until the user customises it. */
+typedef struct {
+  int  opacity;     /* window glass alpha, 0..100 */
+  char glass[8];    /* "#rrggbb" window tint */
+  char accent[8];   /* "#rrggbb" accent */
+} PoxAppearance;
+
+void pox_io_load_appearance (PoxAppearance *out);
+void pox_io_save_appearance (const PoxAppearance *a);
+
+/* Apply an appearance live via a PRIORITY_USER CSS provider that overrides the
+ * static stylesheet (redefines the accent named-colours + the window glass). */
+void pox_apply_appearance (const PoxAppearance *a);
+
 /* ---- config I/O (kwinrc [Effect-poxicle_kwin]) ---- */
 
 void   pox_tune_seed            (const char *name, PoxTune *out);  /* built-in default */
@@ -87,5 +104,6 @@ typedef void (*PoxSavedCb) (gpointer user_data, const char *msg);
 
 GtkWidget *pox_presets_page_new (PoxSavedCb cb, gpointer cb_data);
 GtkWidget *pox_apps_page_new    (PoxSavedCb cb, gpointer cb_data);
+GtkWidget *pox_prefs_page_new   (void);   /* appearance; live + self-persisting */
 
 G_END_DECLS

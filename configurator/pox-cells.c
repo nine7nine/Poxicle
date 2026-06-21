@@ -1,8 +1,10 @@
 /* pox-cells.c — see pox-cells.h. CSS + cell widgets ported from Chiguiro
  * (kgx-settings-page.c + style.css), rebased onto a `.preset-row` ancestor. */
 #include "pox-cells.h"
+#include "pox-config.h"   /* PoxAppearance */
 
 #include <poxicle.h>   /* pox_palette_* — authoritative built-in palette data */
+#include <stdio.h>     /* sscanf — parse #rrggbb glass colour */
 
 static const char *CSS =
   /* ---- app-glass: flat dark translucent plane, forced-dark, own accent ----
@@ -25,11 +27,17 @@ static const char *CSS =
   "separator { background-color: rgba(255,255,255,0.10); }"
   /* view-switcher tabs */
   "viewswitcher button { background: transparent; box-shadow: none;"
-  "  color: rgba(255,255,255,0.80); }"
+  "  color: rgba(255,255,255,0.82); }"
   "viewswitcher button:hover { background-color: rgba(255,255,255,0.06); }"
-  "viewswitcher button:checked { color: @accent_color;"
-  "  background-color: color-mix(in srgb, @accent_bg_color 14%, transparent);"
-  "  border: 1px solid color-mix(in srgb, @accent_bg_color 55%, transparent); }"
+  /* Active tab: LIGHT text (readable focused and unfocused), accent shown via the
+   * tint + border. Accent-coloured text went dark/unreadable on backdrop. */
+  "viewswitcher button:checked { color: #ffffff;"
+  "  background-color: color-mix(in srgb, @accent_bg_color 24%, transparent);"
+  "  border: 1px solid color-mix(in srgb, @accent_bg_color 70%, transparent); }"
+  "viewswitcher button:backdrop { color: rgba(255,255,255,0.80); }"
+  "viewswitcher button:checked:backdrop { color: #ffffff;"
+  "  background-color: color-mix(in srgb, @accent_bg_color 28%, transparent);"
+  "  border-color: color-mix(in srgb, @accent_bg_color 62%, transparent); }"
   /* normal (non-cell) buttons read as glass — but NEVER the window-decoration
    * buttons (close/minimize/maximize/titlebutton): leave those to the theme,
    * exactly as Chiguiro / WeazyStroke do. Deliberately set NO text colour here:
@@ -89,6 +97,16 @@ static const char *CSS =
   "  border: 1px solid rgba(255,255,255,0.15); border-radius: 3px;"
   "  min-height: 0; min-width: 0; padding: 2px 6px; }"
   ".tune-header { font-size: small; }"
+  /* Readability: never let text go dark-grey. libadwaita's .dim-label drops to
+   * ~0.55 opacity, which is unreadable on the dark glass (worse when the window
+   * is unfocused and the toolkit dims the backdrop too). Pin every dim/header
+   * label to a light tone at full opacity, focused AND backdrop. */
+  "label.dim-label, .dim-label {"
+  "  opacity: 1; color: rgba(255,255,255,0.72); }"
+  "label.dim-label:backdrop, .dim-label:backdrop, .tune-header:backdrop {"
+  "  opacity: 1; color: rgba(255,255,255,0.66); }"
+  "window:backdrop, headerbar:backdrop, .toolbar:backdrop {"
+  "  color: rgba(255,255,255,0.95); }"
   /* per-preset name colours */
   ".preset-ambient   { color: #7cb8d9; }"
   ".preset-corners   { color: #60c890; }"
@@ -130,6 +148,38 @@ pox_load_css (void)
                                               GTK_STYLE_PROVIDER (p),
                                               GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
   g_object_unref (p);
+}
+
+void
+pox_apply_appearance (const PoxAppearance *a)
+{
+  /* A second provider at PRIORITY_USER (above the static APPLICATION sheet). We
+   * only redefine the accent named-colours + the window glass: every static rule
+   * that references @accent_bg_color / @accent_color (checkbuttons, suggested
+   * actions, the active tab, selections, focus) re-resolves to the new colour for
+   * free, so nothing else needs restating here. */
+  static GtkCssProvider *dyn = NULL;
+  if (!dyn) {
+    dyn = gtk_css_provider_new ();
+    gtk_style_context_add_provider_for_display (gdk_display_get_default (),
+                                                GTK_STYLE_PROVIDER (dyn),
+                                                GTK_STYLE_PROVIDER_PRIORITY_USER);
+  }
+
+  unsigned int r = 20, g = 20, b = 26;
+  if (a->glass[0] == '#')
+    sscanf (a->glass + 1, "%2x%2x%2x", &r, &g, &b);
+  double alpha = CLAMP (a->opacity, 0, 100) / 100.0;
+  const char *ac = a->accent;
+
+  char *css = g_strdup_printf (
+    "@define-color accent_bg_color %s;"
+    "@define-color accent_color %s;"
+    "@define-color accent_fg_color #ffffff;"
+    "window { background-color: rgba(%u,%u,%u,%.3f); }",
+    ac, ac, r, g, b, alpha);
+  gtk_css_provider_load_from_string (dyn, css);
+  g_free (css);
 }
 
 /* ---- compact spin ---- */

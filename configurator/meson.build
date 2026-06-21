@@ -18,7 +18,15 @@ executable('poxicle-config',
   'pox-cells.c',
   'pox-presets-page.c',
   'pox-apps-page.c',
+  'pox-prefs-page.c',
   '../src/poxicle.c',
   include_directories : include_directories('../include'),
   dependencies : [gtk4_dep, adwaita_dep, m_dep],
   install : true)
+
+# Desktop entry + app icon, so the configurator shows a name/icon in launchers and
+# the compositor maps its Wayland app_id (org.ninez.PoxicleConfig) to this icon.
+install_data('org.ninez.PoxicleConfig.desktop',
+  install_dir : get_option('datadir') / 'applications')
+install_data('org.ninez.PoxicleConfig.svg',
+  install_dir : get_option('datadir') / 'icons' / 'hicolor' / 'scalable' / 'apps')

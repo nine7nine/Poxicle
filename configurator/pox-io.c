@@ -101,6 +101,50 @@ static void write_key(const char *key, const char *value)
   g_key_file_unref(kf);
 }
 
+/* ---- GUI appearance (configurator's own window) ----
+ * Kept in a SEPARATE [Configurator] group of poxicle.conf so the effect and the
+ * GNOME extension (which read only the "poxicle" group) never see it. */
+
+#define POX_UI_GROUP "Configurator"
+
+void pox_io_load_appearance(PoxAppearance *out)
+{
+  /* defaults reproduce the built-in glass look (window rgba(20,20,26,0.90)) */
+  out->opacity = 90;
+  g_strlcpy(out->glass,  "#14141a", sizeof out->glass);
+  g_strlcpy(out->accent, "#3584e4", sizeof out->accent);
+
+  GKeyFile *kf = load_config();
+  if (g_key_file_has_group(kf, POX_UI_GROUP)) {
+    GError *e = NULL;
+    int op = g_key_file_get_integer(kf, POX_UI_GROUP, "Opacity", &e);
+    if (!e) out->opacity = CLAMP(op, 0, 100); else g_clear_error(&e);
+    char *g = g_key_file_get_string(kf, POX_UI_GROUP, "GlassColor", NULL);
+    if (g && *g) g_strlcpy(out->glass, g, sizeof out->glass);
+    g_free(g);
+    char *a = g_key_file_get_string(kf, POX_UI_GROUP, "AccentColor", NULL);
+    if (a && *a) g_strlcpy(out->accent, a, sizeof out->accent);
+    g_free(a);
+  }
+  g_key_file_unref(kf);
+}
+
+void pox_io_save_appearance(const PoxAppearance *a)
+{
+  GKeyFile *kf = load_config();
+  g_key_file_set_integer(kf, POX_UI_GROUP, "Opacity", a->opacity);
+  g_key_file_set_string (kf, POX_UI_GROUP, "GlassColor",  a->glass);
+  g_key_file_set_string (kf, POX_UI_GROUP, "AccentColor", a->accent);
+
+  char *path = config_path();
+  char *dir = g_path_get_dirname(path);
+  g_mkdir_with_parents(dir, 0755);
+  g_key_file_save_to_file(kf, path, NULL);
+  g_free(dir);
+  g_free(path);
+  g_key_file_unref(kf);
+}
+
 /* C-locale float fragment (the effect parses with QString::toFloat == '.'),
  * %g-trimmed so the file reads 1.7 not 1.7000000476837158. */
 static const char *fstr(char *buf, gsize n, double v)

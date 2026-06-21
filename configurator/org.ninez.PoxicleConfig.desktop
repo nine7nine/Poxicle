@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Poxicle Particles
+GenericName=Edge Particle Configurator
+Comment=Configure poxicle edge-particle presets and per-app rules
+Exec=poxicle-config
+Icon=org.ninez.PoxicleConfig
+Terminal=false
+Categories=Settings;DesktopSettings;
+Keywords=particles;effect;edge;poxicle;kwin;animation;
+StartupNotify=true
+StartupWMClass=org.ninez.PoxicleConfig
