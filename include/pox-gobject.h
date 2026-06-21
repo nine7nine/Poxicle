@@ -22,6 +22,7 @@ void           poxicle_engine_set_preset     (PoxicleEngine *self, const char *n
 void           poxicle_engine_set_palette    (PoxicleEngine *self, int palette_id);
 gboolean       poxicle_engine_apply_config   (PoxicleEngine *self, const char *wm_class);
 GBytes        *poxicle_engine_tick           (PoxicleEngine *self, double dt);
+GBytes        *poxicle_engine_tick_vertices  (PoxicleEngine *self, double dt);
 
 /* Catalogue helpers (namespace-level, no engine needed) — wrap the engine's
  * canonical preset + palette tables for binding consumers. */

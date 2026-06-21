@@ -3,8 +3,13 @@
 #include "pox-gobject.h"
 #include "poxicle.h"
 
+#include <math.h>     /* cosf/sinf for circle/triangle vertex expansion */
 #include <stdio.h>    /* sscanf for #rrggbb override colours */
 #include <string.h>   /* strstr for case-folded appId substring match */
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 struct _PoxicleEngine {
   GObject    parent_instance;
@@ -328,6 +333,93 @@ poxicle_engine_tick(PoxicleEngine *self, double dt)
   GBytes *bytes = g_bytes_new(buf, n * sizeof(PoxInstance));
   g_free(buf);
   return bytes;
+}
+
+/* Append one P2C4 vertex (float x,y; premultiplied u8 r,g,b,a — 12 bytes) so the
+ * blob feeds a Cogl primitive straight, no per-vertex struct ABI assumptions. */
+static inline void
+push_vert(GByteArray *out, float x, float y, PoxColor c)
+{
+  float a = CLAMP(c.a, 0.0f, 1.0f);
+  guint8 v[12];
+  memcpy(v + 0, &x, 4);
+  memcpy(v + 4, &y, 4);
+  v[8]  = (guint8)(CLAMP(c.r, 0.0f, 1.0f) * a * 255.0f + 0.5f);  /* premultiplied */
+  v[9]  = (guint8)(CLAMP(c.g, 0.0f, 1.0f) * a * 255.0f + 0.5f);
+  v[10] = (guint8)(CLAMP(c.b, 0.0f, 1.0f) * a * 255.0f + 0.5f);
+  v[11] = (guint8)(a * 255.0f + 0.5f);
+  g_byte_array_append(out, v, sizeof v);
+}
+
+/**
+ * poxicle_engine_tick_vertices:
+ * @self: a #PoxicleEngine
+ * @dt: seconds elapsed since the previous tick
+ *
+ * Advance the simulation by @dt and return this frame's particles already
+ * expanded to a GPU-ready vertex blob: a triangle list of interleaved
+ * #CoglVertexP2C4 vertices (float x, y; then 4 premultiplied unsigned bytes
+ * r, g, b, a — a 12-byte stride). Each shape is triangulated here in C (square
+ * and diamond into two triangles, the rotated triangle into one, the circle
+ * into a fan), so a binding can upload the blob to a Cogl.AttributeBuffer and
+ * draw it in a single primitive — no Cairo, no per-frame window-sized surface.
+ * The vertex count is the blob size / 12. Invisible particles are dropped.
+ *
+ * Returns: (transfer full): the packed vertex blob for this frame
+ */
+GBytes *
+poxicle_engine_tick_vertices(PoxicleEngine *self, double dt)
+{
+  g_return_val_if_fail(POXICLE_IS_ENGINE(self), NULL);
+  const size_t cap = 4096;
+  PoxInstance *buf = g_new(PoxInstance, cap);
+  size_t n = pox_engine_tick(self->engine, dt, buf, cap);
+
+  /* Worst case is the circle fan (CIRCLE_SEGS triangles); size for it up front. */
+  enum { CIRCLE_SEGS = 12 };
+  GByteArray *out = g_byte_array_sized_new((guint)(n * CIRCLE_SEGS * 3 * 12));
+
+  for (size_t i = 0; i < n; i++) {
+    const PoxInstance *p = &buf[i];
+    if (p->color.a <= 0.003f)
+      continue;
+    const float s = p->size, x = p->x, y = p->y;
+    const float cx = x + s * 0.5f, cy = y + s * 0.5f;
+    const PoxColor c = p->color;
+
+    switch (p->shape) {
+    case POX_SHAPE_CIRCLE: {
+      const float r = s * 0.5f;
+      for (int k = 0; k < CIRCLE_SEGS; k++) {
+        float a0 = (float)(2.0 * M_PI * k       / CIRCLE_SEGS);
+        float a1 = (float)(2.0 * M_PI * (k + 1) / CIRCLE_SEGS);
+        push_vert(out, cx, cy, c);
+        push_vert(out, cx + r * cosf(a0), cy + r * sinf(a0), c);
+        push_vert(out, cx + r * cosf(a1), cy + r * sinf(a1), c);
+      }
+      break;
+    }
+    case POX_SHAPE_DIAMOND:
+      push_vert(out, cx, y, c);     push_vert(out, x + s, cy, c); push_vert(out, cx, y + s, c);
+      push_vert(out, cx, y, c);     push_vert(out, cx, y + s, c); push_vert(out, x, cy, c);
+      break;
+    case POX_SHAPE_TRIANGLE: {
+      float ang = p->angle * (float)(M_PI / 180.0), ca = cosf(ang), sa = sinf(ang);
+      const float lx[3] = { 0.0f, s * 0.5f, -s * 0.5f };
+      const float ly[3] = { -s * 0.5f, s * 0.5f, s * 0.5f };
+      for (int k = 0; k < 3; k++)
+        push_vert(out, cx + lx[k] * ca - ly[k] * sa, cy + lx[k] * sa + ly[k] * ca, c);
+      break;
+    }
+    default:   /* POX_SHAPE_SQUARE */
+      push_vert(out, x, y, c);         push_vert(out, x + s, y, c);     push_vert(out, x + s, y + s, c);
+      push_vert(out, x, y, c);         push_vert(out, x + s, y + s, c); push_vert(out, x, y + s, c);
+      break;
+    }
+  }
+
+  g_free(buf);
+  return g_byte_array_free_to_bytes(out);   /* GByteArray -> GBytes, frees wrapper */
 }
 
 /**

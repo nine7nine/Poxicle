@@ -1,48 +1,90 @@
 // Poxicle — GNOME Shell port of the KWin edge-particle effect.
 //
 // Tracks the active window, lays a transparent overlay over its frame, and draws
-// each frame's particles with Cairo. The simulation is the SAME C engine the KWin
-// effect uses, reached through GObject-Introspection (gi://Poxicle) — no separate
-// JavaScript port to keep in sync. Build/install the binding first (gnome/install.sh
-// runs the engine's -Dintrospection target).
-//
-// Config (enable / preset / palette / per-app) will move to GSettings + prefs.js;
-// for now a default preset is applied to the focused window.
+// each frame's particles on the GPU: a custom Clutter.Actor uploads the engine's
+// vertex blob to a Cogl primitive and draws it in a single pass — no Cairo, no
+// per-frame window-sized CPU surface (which made interactive resize stall). The
+// simulation is the SAME C engine the KWin effect uses, reached through
+// GObject-Introspection (gi://Poxicle) — no separate JavaScript port to keep in
+// sync. Build/install the binding first (gnome/install.sh runs the engine's
+// -Dintrospection target).
 
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import St from 'gi://St';
 import Meta from 'gi://Meta';
+import Clutter from 'gi://Clutter';
+import Cogl from 'gi://Cogl';
+import GObject from 'gi://GObject';
 import Pox from 'gi://Poxicle';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const TICK_MS = 16;   // ~60fps; a vsync-locked frame clock is a later refinement.
+const VERT_STRIDE = 12;   // poxicle_engine_tick_vertices: f32 x,y + u8 r,g,b,a
 
 // poxicle-config's DE-neutral config — the same file the KWin effect reads. The
 // engine resolves and applies it (Pox.Engine.apply_config); we only watch it.
 const CONFIG_PATH =
     GLib.build_filenamev([GLib.get_user_config_dir(), 'poxicle', 'poxicle.conf']);
 
-// Packed PoxInstance layout from poxicle_engine_tick() — 36 bytes, little-endian:
-const STRIDE = 36;
-const OFF_X = 0, OFF_Y = 4, OFF_SIZE = 8, OFF_ANGLE = 12, OFF_SHAPE = 16,
-    OFF_R = 20, OFF_G = 24, OFF_B = 28, OFF_A = 32;
-const SHAPE_CIRCLE = 1, SHAPE_DIAMOND = 2, SHAPE_TRIANGLE = 3;
+// Custom actor that draws one frame's particles straight on the GPU. The engine
+// hands us a ready P2C4 triangle list (premultiplied colours); we wrap it in a
+// Cogl attribute buffer and draw a single primitive in the actor's paint pass.
+const PoxicleParticleActor = GObject.registerClass(
+class PoxicleParticleActor extends Clutter.Actor {
+    _init() {
+        super._init({reactive: false});   // clicks pass through to the window
+        this._bytes = null;
+        this._nVerts = 0;
+        this._pipeline = null;
+        this._failed = false;
+    }
+
+    // This frame's GPU-ready vertex blob (from poxicle_engine_tick_vertices).
+    setVertices(bytes, nVerts) {
+        this._bytes = nVerts > 0 ? bytes : null;
+        this._nVerts = nVerts;
+        this.queue_redraw();
+    }
+
+    vfunc_paint(paintContext) {
+        if (this._failed || !this._nVerts || !this._bytes)
+            return;
+        try {
+            const fb = paintContext.get_framebuffer();
+            const ctx = fb.get_context();
+            if (!this._pipeline) {
+                this._pipeline = Cogl.Pipeline.new(ctx);
+                // Premultiplied "over" — the C side premultiplies rgb by alpha.
+                this._pipeline.set_blend(
+                    'RGBA = ADD(SRC_COLOR, DST_COLOR*(1-SRC_COLOR[A]))');
+            }
+            const data = this._bytes.get_data();   // Uint8Array, VERT_STRIDE/vertex
+            const vbuf = Cogl.AttributeBuffer.new(ctx, data);
+            const attrs = [
+                Cogl.Attribute.new(vbuf, 'cogl_position_in',
+                    VERT_STRIDE, 0, 2, Cogl.AttributeType.FLOAT),
+                Cogl.Attribute.new(vbuf, 'cogl_color_in',
+                    VERT_STRIDE, 8, 4, Cogl.AttributeType.UNSIGNED_BYTE),
+            ];
+            const prim = Cogl.Primitive.new_with_attributes(
+                Cogl.VerticesMode.TRIANGLES, this._nVerts, attrs);
+            prim.draw(fb, this._pipeline);
+        } catch (e) {
+            // Report once, then stay quiet — don't spam the shell log per frame.
+            this._failed = true;
+            logError(e, 'Poxicle: GPU paint failed; overlay disabled');
+        }
+    }
+});
 
 export default class PoxicleExtension extends Extension {
     enable() {
         this._win = null;
         this._winSignals = [];
-        this._bytes = null;
-        this._view = null;
-        this._count = 0;
 
         this._engine = new Pox.Engine();
-
-        // Non-reactive so clicks pass straight through to the window beneath.
-        this._area = new St.DrawingArea({reactive: false});
-        this._area.connect('repaint', area => this._repaint(area));
+        this._area = new PoxicleParticleActor();
 
         this._display = global.display;
         this._focusId = this._display.connect('notify::focus-window',
@@ -76,8 +118,6 @@ export default class PoxicleExtension extends Extension {
         this._area?.destroy();
         this._area = null;
         this._engine = null;
-        this._bytes = null;
-        this._view = null;
         this._display = null;
     }
 
@@ -128,66 +168,8 @@ export default class PoxicleExtension extends Extension {
     _tick() {
         if (!this._win || !this._engine || !this._area)
             return;
-        this._bytes = this._engine.tick(TICK_MS / 1000);   // GLib.Bytes of packed instances
-        const data = this._bytes.get_data();               // Uint8Array (roots the bytes)
-        this._view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-        this._count = (data.byteLength / STRIDE) | 0;
-        this._area.queue_repaint();
-    }
-
-    // ---- render the engine's instances (read straight from the packed blob) ----
-
-    _repaint(area) {
-        const [w, h] = area.get_surface_size();
-        if (w <= 0 || h <= 0 || !this._view || !this._count)
-            return;
-        const cr = area.get_context();   // St.DrawingArea hands us a cleared surface
-        const dv = this._view;
-
-        for (let i = 0, off = 0; i < this._count; i++, off += STRIDE) {
-            let a = dv.getFloat32(off + OFF_A, true);
-            if (a <= 0.003)
-                continue;
-            if (a > 1.0)
-                a = 1.0;
-            const x = dv.getFloat32(off + OFF_X, true);
-            const y = dv.getFloat32(off + OFF_Y, true);
-            const s = dv.getFloat32(off + OFF_SIZE, true);
-            const shape = dv.getInt32(off + OFF_SHAPE, true);
-            cr.setSourceRGBA(dv.getFloat32(off + OFF_R, true),
-                dv.getFloat32(off + OFF_G, true),
-                dv.getFloat32(off + OFF_B, true), a);
-
-            switch (shape) {
-                case SHAPE_CIRCLE:
-                    cr.arc(x + s / 2, y + s / 2, s / 2, 0, 2 * Math.PI);
-                    cr.fill();
-                    break;
-                case SHAPE_DIAMOND:
-                    cr.moveTo(x + s / 2, y);
-                    cr.lineTo(x + s, y + s / 2);
-                    cr.lineTo(x + s / 2, y + s);
-                    cr.lineTo(x, y + s / 2);
-                    cr.closePath();
-                    cr.fill();
-                    break;
-                case SHAPE_TRIANGLE:
-                    cr.save();
-                    cr.translate(x + s / 2, y + s / 2);
-                    cr.rotate((dv.getFloat32(off + OFF_ANGLE, true) * Math.PI) / 180);
-                    cr.moveTo(0, -s / 2);
-                    cr.lineTo(s / 2, s / 2);
-                    cr.lineTo(-s / 2, s / 2);
-                    cr.closePath();
-                    cr.fill();
-                    cr.restore();
-                    break;
-                default:   // square
-                    cr.rectangle(x, y, s, s);
-                    cr.fill();
-                    break;
-            }
-        }
-        cr.$dispose();
+        // GPU-ready triangle list (P2C4); the engine expands + premultiplies in C.
+        const bytes = this._engine.tick_vertices(TICK_MS / 1000);
+        this._area.setVertices(bytes, (bytes.get_size() / VERT_STRIDE) | 0);
     }
 }
