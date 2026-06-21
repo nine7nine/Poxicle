@@ -24,6 +24,17 @@ gboolean       poxicle_engine_apply_config   (PoxicleEngine *self, const char *w
 GBytes        *poxicle_engine_tick           (PoxicleEngine *self, double dt);
 GBytes        *poxicle_engine_tick_vertices  (PoxicleEngine *self, double dt);
 
+/* External-stream (bridge receiver) API. A producer process (e.g. Chiguiro) runs
+ * its own sim and streams ready-to-draw instances over a shared memfd; this side
+ * maps that region read-only and converts each new frame to the same GPU-ready
+ * vertex blob tick_vertices() yields — no local sim. Mirrors the KWin effect's
+ * ExtStream, so the GNOME Shell extension can own org.ninez.PoxicleBridge too. */
+gboolean       poxicle_engine_attach_stream        (PoxicleEngine *self, int fd);
+GBytes        *poxicle_engine_read_stream_vertices (PoxicleEngine *self);
+void           poxicle_engine_detach_stream        (PoxicleEngine *self);
+int            poxicle_engine_stream_width         (PoxicleEngine *self);
+int            poxicle_engine_stream_height        (PoxicleEngine *self);
+
 /* Catalogue helpers (namespace-level, no engine needed) — wrap the engine's
  * canonical preset + palette tables for binding consumers. */
 int            poxicle_preset_count          (void);

@@ -2,10 +2,14 @@
  * See pox-gobject.h. Keeps the wrapper thin: it owns a PoxEngine and forwards. */
 #include "pox-gobject.h"
 #include "poxicle.h"
+#include "poxbridge.h"   /* shared producer<->receiver shm protocol */
 
 #include <math.h>     /* cosf/sinf for circle/triangle vertex expansion */
 #include <stdio.h>    /* sscanf for #rrggbb override colours */
 #include <string.h>   /* strstr for case-folded appId substring match */
+#include <sys/mman.h> /* mmap/munmap for the external instance stream */
+#include <sys/stat.h> /* fstat to size the mapped region */
+#include <unistd.h>   /* close the handed-over stream fd */
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -14,6 +18,11 @@
 struct _PoxicleEngine {
   GObject    parent_instance;
   PoxEngine *engine;
+  /* External instance stream (bridge receiver); stream_hdr == NULL when none is
+   * attached. Read-only mmap of a producer's memfd + the last seqlock we drew. */
+  PoxBridgeHeader *stream_hdr;
+  gsize            stream_map;   /* mapped length, for munmap */
+  guint32          stream_seq;   /* seqlock value of the last frame consumed */
 };
 
 G_DEFINE_FINAL_TYPE(PoxicleEngine, poxicle_engine, G_TYPE_OBJECT)
@@ -22,6 +31,7 @@ static void
 poxicle_engine_finalize(GObject *object)
 {
   PoxicleEngine *self = POXICLE_ENGINE(object);
+  poxicle_engine_detach_stream(self);
   g_clear_pointer(&self->engine, pox_engine_free);
   G_OBJECT_CLASS(poxicle_engine_parent_class)->finalize(object);
 }
@@ -351,30 +361,14 @@ push_vert(GByteArray *out, float x, float y, PoxColor c)
   g_byte_array_append(out, v, sizeof v);
 }
 
-/**
- * poxicle_engine_tick_vertices:
- * @self: a #PoxicleEngine
- * @dt: seconds elapsed since the previous tick
- *
- * Advance the simulation by @dt and return this frame's particles already
- * expanded to a GPU-ready vertex blob: a triangle list of interleaved
- * #CoglVertexP2C4 vertices (float x, y; then 4 premultiplied unsigned bytes
- * r, g, b, a — a 12-byte stride). Each shape is triangulated here in C (square
- * and diamond into two triangles, the rotated triangle into one, the circle
- * into a fan), so a binding can upload the blob to a Cogl.AttributeBuffer and
- * draw it in a single primitive — no Cairo, no per-frame window-sized surface.
- * The vertex count is the blob size / 12. Invisible particles are dropped.
- *
- * Returns: (transfer full): the packed vertex blob for this frame
- */
-GBytes *
-poxicle_engine_tick_vertices(PoxicleEngine *self, double dt)
+/* Triangulate @n instances into a GPU-ready P2C4 triangle list (square/diamond
+ * -> two triangles, rotated triangle -> one, circle -> a CIRCLE_SEGS fan); the
+ * vertex count is the blob size / 12. Invisible particles are dropped. Shared by
+ * tick_vertices (local sim) and read_stream_vertices (external producer) so both
+ * paths emit byte-identical geometry. */
+static GBytes *
+instances_to_vertices(const PoxInstance *buf, size_t n)
 {
-  g_return_val_if_fail(POXICLE_IS_ENGINE(self), NULL);
-  const size_t cap = 4096;
-  PoxInstance *buf = g_new(PoxInstance, cap);
-  size_t n = pox_engine_tick(self->engine, dt, buf, cap);
-
   /* Worst case is the circle fan (CIRCLE_SEGS triangles); size for it up front. */
   enum { CIRCLE_SEGS = 12 };
   GByteArray *out = g_byte_array_sized_new((guint)(n * CIRCLE_SEGS * 3 * 12));
@@ -418,8 +412,189 @@ poxicle_engine_tick_vertices(PoxicleEngine *self, double dt)
     }
   }
 
-  g_free(buf);
   return g_byte_array_free_to_bytes(out);   /* GByteArray -> GBytes, frees wrapper */
+}
+
+/**
+ * poxicle_engine_tick_vertices:
+ * @self: a #PoxicleEngine
+ * @dt: seconds elapsed since the previous tick
+ *
+ * Advance the simulation by @dt and return this frame's particles already
+ * expanded to a GPU-ready vertex blob: a triangle list of interleaved
+ * #CoglVertexP2C4 vertices (float x, y; then 4 premultiplied unsigned bytes
+ * r, g, b, a — a 12-byte stride). Each shape is triangulated here in C (square
+ * and diamond into two triangles, the rotated triangle into one, the circle
+ * into a fan), so a binding can upload the blob to a Cogl.AttributeBuffer and
+ * draw it in a single primitive — no Cairo, no per-frame window-sized surface.
+ * The vertex count is the blob size / 12. Invisible particles are dropped.
+ *
+ * Returns: (transfer full): the packed vertex blob for this frame
+ */
+GBytes *
+poxicle_engine_tick_vertices(PoxicleEngine *self, double dt)
+{
+  g_return_val_if_fail(POXICLE_IS_ENGINE(self), NULL);
+  const size_t cap = 4096;
+  PoxInstance *buf = g_new(PoxInstance, cap);
+  size_t n = pox_engine_tick(self->engine, dt, buf, cap);
+  GBytes *bytes = instances_to_vertices(buf, n);
+  g_free(buf);
+  return bytes;
+}
+
+/**
+ * poxicle_engine_attach_stream:
+ * @self: a #PoxicleEngine
+ * @fd: a readable file descriptor for a producer's poxbridge shared region
+ *
+ * Map an external particle producer's shared region (a memfd handed over by the
+ * producer, e.g. Chiguiro, via D-Bus) read-only and validate its header. Once
+ * attached, poxicle_engine_read_stream_vertices() draws the producer's frames
+ * instead of a local sim — the receiver side of org.ninez.PoxicleBridge. Any
+ * previously attached stream is dropped first. Takes ownership of @fd and closes
+ * it (the mmap outlives the descriptor).
+ *
+ * Returns: %TRUE if the region mapped and its header is valid.
+ */
+gboolean
+poxicle_engine_attach_stream(PoxicleEngine *self, int fd)
+{
+  g_return_val_if_fail(POXICLE_IS_ENGINE(self), FALSE);
+
+  gboolean ok = FALSE;
+  struct stat st;
+
+  if (fd >= 0 && fstat(fd, &st) == 0 &&
+      st.st_size >= (off_t) sizeof(PoxBridgeHeader)) {
+    gsize map = (gsize) st.st_size;
+    void *base = mmap(NULL, map, PROT_READ, MAP_SHARED, fd, 0);
+
+    if (base != MAP_FAILED) {
+      PoxBridgeHeader *h = base;
+      if (h->magic == POX_BRIDGE_MAGIC && h->version == POX_BRIDGE_VERSION &&
+          h->inst_size == (guint32) sizeof(PoxInstance) &&
+          map >= pox_bridge_map_size(h->capacity, h->inst_size)) {
+        poxicle_engine_detach_stream(self);   /* replace any prior registration */
+        self->stream_hdr = h;
+        self->stream_map = map;
+        self->stream_seq = 0;
+        ok = TRUE;
+      } else {
+        munmap(base, map);
+      }
+    }
+  }
+
+  if (fd >= 0)
+    close(fd);
+  return ok;
+}
+
+/**
+ * poxicle_engine_read_stream_vertices:
+ * @self: a #PoxicleEngine with a stream attached (see attach_stream)
+ *
+ * Read the latest complete frame from the attached producer stream — using the
+ * shared region's seqlock to skip torn or mid-write frames — and expand it to
+ * the same GPU-ready vertex blob poxicle_engine_tick_vertices() returns. Returns
+ * %NULL when no new frame has arrived since the previous call (the caller should
+ * keep drawing its last blob); an empty (zero-length) blob means a new frame
+ * with no live particles (the caller should clear).
+ *
+ * Returns: (transfer full) (nullable): this frame's vertex blob, or %NULL.
+ */
+GBytes *
+poxicle_engine_read_stream_vertices(PoxicleEngine *self)
+{
+  g_return_val_if_fail(POXICLE_IS_ENGINE(self), NULL);
+
+  PoxBridgeHeader *h = self->stream_hdr;
+  if (!h)
+    return NULL;
+
+  guint32 cap = h->capacity;
+  if (cap == 0 || cap > (1u << 20))   /* guard a corrupt header */
+    return NULL;
+
+  PoxInstance *buf = g_new(PoxInstance, cap);
+  GBytes *result = NULL;
+
+  /* Seqlock reader (mirrors the KWin effect): bail on odd seq (mid-write) or an
+   * unchanged seq (no new frame); copy the body, then re-read seq and retry if it
+   * moved (torn). A few retries is plenty — the producer writes once per frame. */
+  for (int attempt = 0; attempt < 8; attempt++) {
+    guint32 s1 = __atomic_load_n(&h->seq, __ATOMIC_ACQUIRE);
+    if (s1 & 1u)
+      continue;                       /* producer mid-write */
+    if (s1 == self->stream_seq) {     /* nothing new since last read */
+      g_free(buf);
+      return NULL;
+    }
+
+    guint32 count = h->count;
+    if (count > cap)
+      count = cap;
+    memcpy(buf, (const char *) h + sizeof(PoxBridgeHeader),
+           (size_t) count * sizeof(PoxInstance));
+
+    if (__atomic_load_n(&h->seq, __ATOMIC_ACQUIRE) == s1) {
+      self->stream_seq = s1;
+      result = instances_to_vertices(buf, count);
+      break;
+    }
+    /* torn — the producer wrote while we copied; retry */
+  }
+
+  g_free(buf);
+  return result;
+}
+
+/**
+ * poxicle_engine_detach_stream:
+ * @self: a #PoxicleEngine
+ *
+ * Unmap any attached producer stream (no-op if none). Called automatically on
+ * finalize; call it explicitly when the producer unregisters.
+ */
+void
+poxicle_engine_detach_stream(PoxicleEngine *self)
+{
+  g_return_if_fail(POXICLE_IS_ENGINE(self));
+  if (self->stream_hdr) {
+    munmap(self->stream_hdr, self->stream_map);
+    self->stream_hdr = NULL;
+    self->stream_map = 0;
+    self->stream_seq = 0;
+  }
+}
+
+/**
+ * poxicle_engine_stream_width:
+ * @self: a #PoxicleEngine
+ *
+ * Returns: the attached producer's surface width in logical pixels, or 0 if no
+ * stream is attached.
+ */
+int
+poxicle_engine_stream_width(PoxicleEngine *self)
+{
+  g_return_val_if_fail(POXICLE_IS_ENGINE(self), 0);
+  return self->stream_hdr ? (int) self->stream_hdr->width : 0;
+}
+
+/**
+ * poxicle_engine_stream_height:
+ * @self: a #PoxicleEngine
+ *
+ * Returns: the attached producer's surface height in logical pixels, or 0 if no
+ * stream is attached.
+ */
+int
+poxicle_engine_stream_height(PoxicleEngine *self)
+{
+  g_return_val_if_fail(POXICLE_IS_ENGINE(self), 0);
+  return self->stream_hdr ? (int) self->stream_hdr->height : 0;
 }
 
 /**
