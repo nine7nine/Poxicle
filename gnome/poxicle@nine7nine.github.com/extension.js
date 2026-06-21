@@ -10,15 +10,16 @@
 // for now a default preset is applied to the focused window.
 
 import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 import St from 'gi://St';
 import Meta from 'gi://Meta';
 import Pox from 'gi://Poxicle';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-const TICK_MS = 16;                 // ~60fps; a vsync-locked frame clock is a later refinement.
-const DEFAULT_PRESET = 'ambient';   // TODO: from GSettings (prefs.js).
-const DEFAULT_PALETTE = 17;         // "Verdant".
+import {resolve as resolveLook, CONFIG_PATH} from './config.js';
+
+const TICK_MS = 16;   // ~60fps; a vsync-locked frame clock is a later refinement.
 
 // Packed PoxInstance layout from poxicle_engine_tick() — 36 bytes, little-endian:
 const STRIDE = 36;
@@ -35,8 +36,6 @@ export default class PoxicleExtension extends Extension {
         this._count = 0;
 
         this._engine = new Pox.Engine();
-        this._engine.set_preset(DEFAULT_PRESET, 0);
-        this._engine.set_palette(DEFAULT_PALETTE);
 
         // Non-reactive so clicks pass straight through to the window beneath.
         this._area = new St.DrawingArea({reactive: false});
@@ -45,6 +44,12 @@ export default class PoxicleExtension extends Extension {
         this._display = global.display;
         this._focusId = this._display.connect('notify::focus-window',
             () => this._retarget());
+
+        // Live-reload when poxicle-config saves the neutral config file.
+        this._cfgMonitor = Gio.File.new_for_path(CONFIG_PATH)
+            .monitor_file(Gio.FileMonitorFlags.WATCH_MOVES, null);
+        this._cfgMonitor.connect('changed', () => this._retarget());
+
         this._retarget();
 
         this._timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TICK_MS, () => {
@@ -62,6 +67,8 @@ export default class PoxicleExtension extends Extension {
             this._display.disconnect(this._focusId);
             this._focusId = 0;
         }
+        this._cfgMonitor?.cancel();
+        this._cfgMonitor = null;
         this._untrack();
         this._area?.destroy();
         this._area = null;
@@ -88,8 +95,15 @@ export default class PoxicleExtension extends Extension {
         const win = this._display?.focus_window;
         if (!win || win.get_window_type() !== Meta.WindowType.NORMAL)
             return;
-        this._win = win;
 
+        // What does poxicle-config say to draw for this window? null => nothing.
+        const look = resolveLook(win.get_wm_class());
+        if (!look)
+            return;
+        this._engine.set_preset(look.preset, look.reverse);
+        this._engine.set_palette(look.palette);
+
+        this._win = win;
         for (const sig of ['position-changed', 'size-changed'])
             this._winSignals.push([win, win.connect(sig, () => this._place())]);
         this._winSignals.push([win, win.connect('unmanaged', () => this._untrack())]);
