@@ -39,11 +39,9 @@ public:
     PoxicleEffect();
     ~PoxicleEffect() override;
 
-    void prePaintScreen(KWin::ScreenPrePaintData &data,
-                        std::chrono::milliseconds presentTime) override;
+    void prePaintScreen(KWin::ScreenPrePaintData &data) override;
     void prePaintWindow(KWin::RenderView *view, KWin::EffectWindow *w,
-                        KWin::WindowPrePaintData &data,
-                        std::chrono::milliseconds presentTime) override;
+                        KWin::WindowPrePaintData &data) override;
     void paintWindow(const KWin::RenderTarget &renderTarget,
                      const KWin::RenderViewport &viewport,
                      KWin::EffectWindow *w, int mask,

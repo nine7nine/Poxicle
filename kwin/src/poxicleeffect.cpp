@@ -5,6 +5,7 @@
 #include <effect/effectwindow.h>
 #include <core/renderviewport.h>
 #include <core/rect.h>
+#include <core/renderbackend.h>   // KWin::OutputFrame (present-time source)
 #include <scene/scene.h>   // KWin::RenderView
 
 #include <QMatrix4x4>
@@ -426,9 +427,16 @@ void PoxicleEffect::slotWindowActivated(KWin::EffectWindow *w)
     }
 }
 
-void PoxicleEffect::prePaintScreen(KWin::ScreenPrePaintData &data,
-                                   std::chrono::milliseconds presentTime)
+void PoxicleEffect::prePaintScreen(KWin::ScreenPrePaintData &data)
 {
+    // KWin dropped the presentTime argument; the frame's target pageflip time is
+    // the present-time equivalent (a steady_clock time_point). Fall back to the
+    // last value when no frame is attached so the sim simply doesn't re-advance.
+    const std::chrono::milliseconds presentTime = data.frame
+        ? std::chrono::duration_cast<std::chrono::milliseconds>(
+              data.frame->targetPageflipTime().time_since_epoch())
+        : m_lastPresent;
+
     // Advance + collect once per frame. prePaintScreen runs once per output, so
     // gate on presentTime to avoid double-advancing the sim on multi-output frames.
     if (presentTime > m_lastPresent) {
@@ -554,29 +562,28 @@ void PoxicleEffect::prePaintScreen(KWin::ScreenPrePaintData &data,
         }
     }
 
-    KWin::effects->prePaintScreen(data, presentTime);
+    KWin::effects->prePaintScreen(data);
 }
 
 void PoxicleEffect::prePaintWindow(KWin::RenderView *view, KWin::EffectWindow *w,
-                                   KWin::WindowPrePaintData &data,
-                                   std::chrono::milliseconds presentTime)
+                                   KWin::WindowPrePaintData &data)
 {
-    // Our particles live in a ring OUTSIDE the window frame. Tell KWin this window
-    // paints that larger band (in device coords) so the exterior ring isn't clipped
-    // to the window rect when we draw it in paintWindow().
+    // Our particles live in a ring OUTSIDE the window frame. KWin 6.7 removed the
+    // per-window paint-region expansion (WindowPrePaintData::devicePaint); the only
+    // way to escape the window's bounding-rect scissor is to mark the window
+    // transformed, which disables that per-window clip for its paint pass so
+    // paintWindow() can draw beyond the frame. We only do this when this window
+    // actually has particles this frame, so an idle window keeps the cheap
+    // region-limited paint path.
     auto it = m_windows.find(w);
     const bool perApp = (it != m_windows.end() && !it->second.instances.empty());
     const bool overlay = (w == m_activeWindow && !m_activeInstances.empty());
     ExtStream *st = streamFor(w);
     const bool ext = (st && !st->instances.empty());
-    if (visible(w) && (perApp || overlay || ext)) {
-        const QRectF base = perApp ? it->second.geom : (ext ? st->geom : m_activeGeom);
-        const QRectF band = base.adjusted(-kBandMargin, -kBandMargin,
-                                          kBandMargin, kBandMargin);
-        data.devicePaint += view->mapToDeviceCoordinatesAligned(KWin::RectF(band));
-    }
+    if (visible(w) && (perApp || overlay || ext))
+        data.setTransformed();
 
-    KWin::effects->prePaintWindow(view, w, data, presentTime);
+    KWin::effects->prePaintWindow(view, w, data);
 }
 
 void PoxicleEffect::paintWindow(const KWin::RenderTarget &renderTarget,
@@ -600,7 +607,15 @@ void PoxicleEffect::paintWindow(const KWin::RenderTarget &renderTarget,
     // data.translation() below. NB: the Magic Lamp un-minimize warp is non-affine
     // and does NOT set this flag for us — that case is handled by the un-minimize
     // grace below (and in prePaintScreen), not here.
-    if ((mask & PAINT_WINDOW_TRANSFORMED) && !w->isUserMove() && !w->isUserResize())
+    // We now set PAINT_WINDOW_TRANSFORMED ourselves (above, to paint outside the
+    // frame), so that bit no longer tells us a *foreign* effect is transforming the
+    // window. Detect that via a non-identity scale instead — overview, desktop grid,
+    // present-windows, Squash minimize and maximize all scale the window, and our
+    // particles (pinned to the settled frameGeometry) would float detached from the
+    // in-flight transform. Pure interactive move/resize is a translation we already
+    // follow via data.*Translation() below, so it stays exempt.
+    if ((data.xScale() != 1.0 || data.yScale() != 1.0 || data.zScale() != 1.0)
+        && !w->isUserMove() && !w->isUserResize())
         return;
 
     // Hold every particle layer (per-app, overlay, and stream) for a streamed
