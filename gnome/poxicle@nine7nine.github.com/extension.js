@@ -26,12 +26,20 @@ import Meta from 'gi://Meta';
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
+import St from 'gi://St';
 import Pox from 'gi://Poxicle';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const TICK_MS = 16;   // ~60fps; a vsync-locked frame clock is a later refinement.
 const VERT_STRIDE = 12;   // poxicle_engine_tick_vertices: f32 x,y + u8 r,g,b,a
+
+// Base time (logical ms) to hold a stream's particles back after its window starts
+// un-minimizing, so the ring doesn't snap in at the settled frame_rect while Magic
+// Lamp / Burn My Windows is still warping the window up from the panel. Mirrors the
+// KWin effect's kUnminimizeGraceMs; scaled at runtime by St.Settings so it tracks
+// the user's animation speed and collapses to 0 when animations are off/instant.
+const UNMINIMIZE_GRACE_MS = 350;
 
 // poxicle-config's DE-neutral config — the same file the KWin effect reads. The
 // engine resolves and applies it (Pox.Engine.apply_config); we only watch it.
@@ -266,7 +274,7 @@ export default class PoxicleExtension extends Extension {
         this._dropStream(pid, /*retarget=*/ false);   // replace prior (producer respawn)
 
         const s = {pid, engine, actor: new PoxicleParticleActor(), win: null,
-                   winSignals: []};
+                   winSignals: [], wasMinimized: false, suppressUntil: 0};
         this._streams.set(pid, s);
         this._bindWindow(s);
 
@@ -334,9 +342,34 @@ export default class PoxicleExtension extends Extension {
         // (keep the last); an empty blob => a frame with no particles (clears).
         if (!this._streams)
             return;
+        const nowUs = GLib.get_monotonic_time();
         for (const s of this._streams.values()) {
             if (!s.win && !this._bindWindow(s))
                 continue;
+
+            // Our actor is a SIBLING of the window actor in window_group, so Mutter's
+            // minimize-hide doesn't cover it — without this gate the ring would freeze
+            // mid-air where the window was. Hide while minimized; on the un-minimize
+            // edge arm a grace so it doesn't snap in at the settled frame_rect over a
+            // still-animating window (Magic Lamp / Burn My Windows). Parity with the
+            // KWin effect's stream path (visible() + kUnminimizeGraceMs).
+            const minimizedNow = !!s.win.minimized;
+            if (s.wasMinimized && !minimizedNow) {
+                const st = St.Settings.get();
+                const factor = st.enable_animations ? st.slow_down_factor : 0;
+                s.suppressUntil = nowUs + UNMINIMIZE_GRACE_MS * 1000 * factor;
+            }
+            s.wasMinimized = minimizedNow;
+
+            if (minimizedNow || nowUs < s.suppressUntil) {
+                s.actor.hide();
+                continue;
+            }
+            if (!s.actor.visible) {
+                s.actor.show();
+                this._placeStream(s);   // re-aim at the settled frame_rect after restore
+            }
+
             const bytes = s.engine.read_stream_vertices();
             if (bytes !== null)
                 s.actor.setVertices(bytes, nVertsOf(bytes));
