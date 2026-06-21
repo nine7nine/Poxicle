@@ -37,35 +37,68 @@ static const Seed kSeeds[] = {
   { "fireflies", { 0.7f, 12, 0.3f, 0.0f,  0.5f, 0.0f, 0.0f,  2, 0, 1, 0, 0.0f,  0.0f, 2, 0 } },
 };
 
-/* ---- KConfig CLI helpers (KConfig owns the file format) ---- */
+/* ---- DE-neutral config I/O (~/.config/poxicle/poxicle.conf) ----
+ * Plain GKeyFile, no KDE tools, so the configurator runs under any desktop. The
+ * KWin effect and the GNOME Shell extension both read this file. Keys/packed
+ * formats are unchanged from the old kwinrc [Effect-poxicle_kwin] group. */
+
+#define POX_GROUP "poxicle"
+
+static char *config_path(void)
+{
+  return g_build_filename(g_get_user_config_dir(), "poxicle", "poxicle.conf", NULL);
+}
+
+/* One-time seed from the old kwinrc group, so existing setups carry over. kwinrc
+ * is a plain ini, so this reads it with GKeyFile too — no KDE tools required. */
+static void migrate_from_kwinrc(GKeyFile *kf)
+{
+  char *kpath = g_build_filename(g_get_user_config_dir(), "kwinrc", NULL);
+  GKeyFile *old = g_key_file_new();
+  if (g_key_file_load_from_file(old, kpath, G_KEY_FILE_NONE, NULL) &&
+      g_key_file_has_group(old, "Effect-poxicle_kwin")) {
+    gsize n = 0;
+    char **keys = g_key_file_get_keys(old, "Effect-poxicle_kwin", &n, NULL);
+    for (gsize i = 0; keys && i < n; i++) {
+      char *v = g_key_file_get_string(old, "Effect-poxicle_kwin", keys[i], NULL);
+      if (v) { g_key_file_set_string(kf, POX_GROUP, keys[i], v); g_free(v); }
+    }
+    g_strfreev(keys);
+  }
+  g_key_file_unref(old);
+  g_free(kpath);
+}
+
+static GKeyFile *load_config(void)
+{
+  GKeyFile *kf = g_key_file_new();
+  char *path = config_path();
+  if (!g_key_file_load_from_file(kf, path, G_KEY_FILE_NONE, NULL))
+    migrate_from_kwinrc(kf);   /* neutral file absent: seed from kwinrc once */
+  g_free(path);
+  return kf;
+}
 
 static char *read_key(const char *key)
 {
-  GSubprocess *p = g_subprocess_new(G_SUBPROCESS_FLAGS_STDOUT_PIPE, NULL,
-                                    "kreadconfig6", "--file", "kwinrc",
-                                    "--group", "Effect-poxicle_kwin",
-                                    "--key", key, NULL);
-  if (!p)
-    return g_strdup("");
-
-  char *out = NULL;
-  if (!g_subprocess_communicate_utf8(p, NULL, NULL, &out, NULL, NULL) || !out)
-    out = g_strdup("");
-  g_object_unref(p);
-  g_strchomp(out);
-  return out;
+  GKeyFile *kf = load_config();
+  char *v = g_key_file_get_string(kf, POX_GROUP, key, NULL);
+  g_key_file_unref(kf);
+  return v ? v : g_strdup("");
 }
 
 static void write_key(const char *key, const char *value)
 {
-  GSubprocess *p = g_subprocess_new(G_SUBPROCESS_FLAGS_NONE, NULL,
-                                    "kwriteconfig6", "--file", "kwinrc",
-                                    "--group", "Effect-poxicle_kwin",
-                                    "--key", key, value, NULL);
-  if (p) {
-    g_subprocess_wait(p, NULL, NULL);
-    g_object_unref(p);
-  }
+  GKeyFile *kf = load_config();
+  g_key_file_set_string(kf, POX_GROUP, key, value);
+
+  char *path = config_path();
+  char *dir = g_path_get_dirname(path);
+  g_mkdir_with_parents(dir, 0755);
+  g_key_file_save_to_file(kf, path, NULL);
+  g_free(dir);
+  g_free(path);
+  g_key_file_unref(kf);
 }
 
 /* C-locale float fragment (the effect parses with QString::toFloat == '.'),
