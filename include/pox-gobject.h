@@ -20,6 +20,7 @@ PoxicleEngine *poxicle_engine_new            (void);
 void           poxicle_engine_set_surface    (PoxicleEngine *self, int width, int height, int scale);
 void           poxicle_engine_set_preset     (PoxicleEngine *self, const char *name, int reverse);
 void           poxicle_engine_set_palette    (PoxicleEngine *self, int palette_id);
+gboolean       poxicle_engine_apply_config   (PoxicleEngine *self, const char *wm_class);
 GBytes        *poxicle_engine_tick           (PoxicleEngine *self, double dt);
 
 /* Catalogue helpers (namespace-level, no engine needed) — wrap the engine's

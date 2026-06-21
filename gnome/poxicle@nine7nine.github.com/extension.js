@@ -17,9 +17,12 @@ import Pox from 'gi://Poxicle';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-import {resolve as resolveLook, CONFIG_PATH} from './config.js';
-
 const TICK_MS = 16;   // ~60fps; a vsync-locked frame clock is a later refinement.
+
+// poxicle-config's DE-neutral config — the same file the KWin effect reads. The
+// engine resolves and applies it (Pox.Engine.apply_config); we only watch it.
+const CONFIG_PATH =
+    GLib.build_filenamev([GLib.get_user_config_dir(), 'poxicle', 'poxicle.conf']);
 
 // Packed PoxInstance layout from poxicle_engine_tick() — 36 bytes, little-endian:
 const STRIDE = 36;
@@ -96,12 +99,11 @@ export default class PoxicleExtension extends Extension {
         if (!win || win.get_window_type() !== Meta.WindowType.NORMAL)
             return;
 
-        // What does poxicle-config say to draw for this window? null => nothing.
-        const look = resolveLook(win.get_wm_class());
-        if (!look)
+        // Resolve + apply the whole look (preset, its stored parameter edits, the
+        // per-app override columns, palette, reverse) in the engine — parity with
+        // the KWin effect. false => this window draws nothing.
+        if (!this._engine.apply_config(win.get_wm_class()))
             return;
-        this._engine.set_preset(look.preset, look.reverse);
-        this._engine.set_palette(look.palette);
 
         this._win = win;
         for (const sig of ['position-changed', 'size-changed'])
