@@ -59,6 +59,33 @@ poxicle_wl_dep = declare_dependency(
 meson.override_dependency('poxicle', poxicle_dep)
 meson.override_dependency('poxicle-wl', poxicle_wl_dep)
 
+# ---- GObject / GObject-Introspection binding (opt-in) ----------------------
+# A thin GObject wrapper around the sim core so language bindings — notably the
+# GNOME Shell extension (gjs) — drive the SAME C engine the KWin effect links,
+# instead of maintaining a separate port. Installs a shared lib + a Poxicle-1.0
+# typelib. The core engine stays dependency-free; only this target pulls GObject.
+if get_option('introspection')
+  gobject = dependency('gobject-2.0')
+  gnome   = import('gnome')
+
+  libpoxicle_gobject = shared_library('poxicle-gobject',
+    'src/poxicle.c',
+    'src/pox-gobject.c',
+    include_directories : inc,
+    dependencies : [gobject, libm],
+    install : true)
+
+  gnome.generate_gir(libpoxicle_gobject,
+    sources           : ['src/pox-gobject.c', 'include/pox-gobject.h'],
+    namespace         : 'Poxicle',
+    nsversion         : '1.0',
+    identifier_prefix : 'Poxicle',
+    symbol_prefix     : 'poxicle',
+    includes          : ['GObject-2.0'],
+    header            : 'pox-gobject.h',
+    install           : true)
+endif
+
 if get_option('demos')
   # Reference consumer: a standalone Wayland/EGL window that links the library.
   executable('poxicle-demo',

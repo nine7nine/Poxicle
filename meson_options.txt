@@ -2,3 +2,5 @@ option('demos', type : 'boolean', value : true,
   description : 'Build the standalone demo executables')
 option('configurator', type : 'boolean', value : false,
   description : 'Build the standalone GTK4 configurator app (needs gtk4 + libadwaita-1)')
+option('introspection', type : 'boolean', value : false,
+  description : 'Build the GObject wrapper + GIR typelib for the GNOME Shell extension (needs gobject-2.0 + gobject-introspection)')
