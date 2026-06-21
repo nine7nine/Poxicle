@@ -62,8 +62,16 @@ static const char *CSS =
   /* lists */
   "list, list > row { background: transparent; }"
   "list > row:selected {"
-  "  background-color: color-mix(in srgb, @accent_bg_color 20%, transparent);"
-  "  color: inherit; }"
+  "  background-color: color-mix(in srgb, @accent_bg_color 20%, transparent); }"
+  /* A selected row must NOT fall to GTK's dark selected-foreground: force EVERY
+   * descendant (labels, dropdown/button labels, spin text) to light. The `*`
+   * out-specifies the per-cell colour rules so nothing stays dark on selection. */
+  "list > row:selected, list > row:selected *,"
+  "list > row:selected label, list > row:selected text {"
+  "  color: rgba(255,255,255,0.97); }"
+  "list > row:selected:backdrop, list > row:selected:backdrop *,"
+  "list > row:selected:backdrop label, list > row:selected:backdrop text {"
+  "  color: rgba(255,255,255,0.92); }"
   /* checkbuttons use our accent */
   "checkbutton check:checked, check:checked { background-color: @accent_bg_color;"
   "  background-image: none; border-color: @accent_bg_color; color: #ffffff; }"
