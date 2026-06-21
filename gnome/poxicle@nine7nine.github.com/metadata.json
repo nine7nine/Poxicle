@@ -1,0 +1,8 @@
+{
+  "uuid": "poxicle@nine7nine.github.com",
+  "name": "Poxicle",
+  "description": "Edge-particle effects around the active window — the GNOME Shell port of the Poxicle KWin effect. Tracks the focused window and draws particles around its frame.",
+  "shell-version": ["50"],
+  "url": "https://github.com/nine7nine/Poxicle",
+  "version": 1
+}
