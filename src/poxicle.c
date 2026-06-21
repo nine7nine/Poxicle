@@ -216,6 +216,69 @@ void pox_tunables_default(PoxTunables *t)
   t->thk_release_mode = POX_RELEASE_UNIFORM;
 }
 
+/* ---- presets: canonical seed tunables + name->kind -----------------------
+ * The single source of truth (was duplicated in the configurator's pox-io.c and
+ * the KWin effect's poxconfig.cpp). Seed field order matches PoxTunables. */
+typedef struct { const char *name; PoxKind kind; PoxTunables tune; } PoxPresetDef;
+
+static const PoxPresetDef POX_PRESETS[] = {
+  { "ambient",      POX_KIND_AMBIENT,     { 0.3f, 30, 0.9f, 1.0f,  2.1f, 0.2f,  0.5f,  1, 0, 0, 0, 0.5f,  0.0f, 3, 0 } },
+  { "corners",      POX_KIND_CORNERS,     { 1.1f, 20, 0.9f, 0.5f,  0.8f, 0.2f,  0.3f,  2, 0, 0, 0, 0.0f,  0.0f, 2, 0 } },
+  { "fireworks",    POX_KIND_FIREWORKS,   { 1.4f, 20, 0.9f, 0.65f, 0.9f, 0.2f,  0.3f,  2, 1, 0, 0, 0.4f,  0.0f, 2, 0 } },
+  { "ping-pong",    POX_KIND_PING_PONG,   { 0.5f, 20, 0.1f, 0.45f, 0.8f, 0.0f,  0.0f,  2, 0, 1, 0, 0.0f,  0.0f, 2, 0 } },
+  { "pulse-out",    POX_KIND_PULSE_OUT,   { 1.0f, 20, 0.9f, 0.5f,  0.8f, 0.0f,  0.1f,  2, 1, 0, 0, 0.5f,  0.0f, 2, 0 } },
+  { "rotate",       POX_KIND_ROTATE,      { 1.5f, 20, 0.9f, 0.5f,  0.8f, 0.2f,  0.3f,  2, 0, 0, 0, 0.15f, 0.3f, 2, 0 } },
+  { "laser",        POX_KIND_LASER,       { 2.5f,  8, 0.4f, 0.0f,  0.5f, 0.0f,  0.1f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "tracer",       POX_KIND_TRACER,      { 1.2f, 12, 0.5f, 0.2f,  0.8f, 0.1f,  0.2f,  2, 0, 0, 0, 0.0f,  0.0f, 2, 0 } },
+  { "comet",        POX_KIND_COMET,       { 0.8f, 16, 1.5f, 0.3f,  0.8f, 0.1f,  0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "spinner",      POX_KIND_SPINNER,     { 1.3f, 14, 0.9f, 0.2f,  0.8f, 0.1f,  0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "ripple",       POX_KIND_RIPPLE,      { 1.0f, 14, 0.6f, 0.3f,  0.8f, 0.15f, 0.3f,  2, 0, 1, 1, 0.0f,  0.0f, 2, 0 } },
+  { "charge",       POX_KIND_CHARGE,      { 1.0f, 16, 0.6f, 0.3f,  0.8f, 0.15f, 0.3f,  2, 0, 1, 1, 0.0f,  0.0f, 2, 0 } },
+  { "spread",       POX_KIND_SPREAD,      { 2.0f, 10, 0.4f, 0.0f,  0.5f, 0.0f,  0.1f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "radar",        POX_KIND_RADAR,       { 1.0f, 14, 1.2f, 0.2f,  0.8f, 0.1f,  0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "counter-spin", POX_KIND_COUNTERSPIN, { 1.1f, 12, 0.8f, 0.2f,  0.8f, 0.1f,  0.2f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "snake",        POX_KIND_SNAKE,       { 1.0f, 16, 1.0f, 0.1f,  0.5f, 0.0f,  0.1f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "breathe",      POX_KIND_BREATHE,     { 0.5f, 22, 0.9f, 0.0f,  0.5f, 0.0f,  0.0f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "strobe",       POX_KIND_STROBE,      { 1.2f, 20, 0.9f, 0.0f,  0.5f, 0.0f,  0.0f,  2, 0, 0, 1, 0.0f,  0.0f, 2, 0 } },
+  { "fireflies",    POX_KIND_FIREFLIES,   { 0.7f, 12, 0.3f, 0.0f,  0.5f, 0.0f,  0.0f,  2, 0, 1, 0, 0.0f,  0.0f, 2, 0 } },
+};
+static const int POX_PRESET_N = (int) (sizeof POX_PRESETS / sizeof POX_PRESETS[0]);
+
+/* "none" is an app state (disabled), not a selectable preset, so it is not in the
+ * list above, but its seed is resolvable by name. */
+static const PoxPresetDef POX_PRESET_NONE =
+  { "none", POX_KIND_NONE, { 0.7f, 6, 0.7f, 0.0f, 0.3f, 0.2f, 0.05f, 2, 1, 3, 0, 0.0f, 0.0f, 2, 0 } };
+
+static const PoxPresetDef *find_preset(const char *name)
+{
+  if (!name) return NULL;
+  if (strcmp(name, "none") == 0) return &POX_PRESET_NONE;
+  for (int i = 0; i < POX_PRESET_N; i++)
+    if (strcmp(name, POX_PRESETS[i].name) == 0) return &POX_PRESETS[i];
+  return NULL;
+}
+
+int pox_preset_count(void) { return POX_PRESET_N; }
+
+const char *pox_preset_name(int id)
+{
+  return (id >= 0 && id < POX_PRESET_N) ? POX_PRESETS[id].name : NULL;
+}
+
+int pox_preset_tunables(const char *name, PoxTunables *out)
+{
+  const PoxPresetDef *d = find_preset(name);
+  if (!d || !out) return 0;
+  *out = d->tune;
+  return 1;
+}
+
+PoxKind pox_kind_for_preset(const char *name)
+{
+  const PoxPresetDef *d = find_preset(name);
+  return d ? d->kind : POX_KIND_AMBIENT;   /* unknown -> ambient (historical fallback) */
+}
+
 /* ---- one trailing segment → instances (ported from kgx_edge_draw_segment,
  * minus the four-widget side cull: this surface covers the whole perimeter) ---- */
 static void emit_segment(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap,

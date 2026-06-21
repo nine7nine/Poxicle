@@ -101,6 +101,19 @@ typedef struct {
 /* Fill `t` with sensible defaults (matches the engine's ambient look). */
 void pox_tunables_default (PoxTunables *t);
 
+/* ---- presets (canonical seed tunables + name->kind) ---------------------- */
+/* The built-in presets: the single source of truth for seed tunables and the
+ * name->emission-kind mapping, shared by the engine, the configurator and every
+ * compositor backend so no one keeps a private copy. */
+int         pox_preset_count    (void);                  /* number of presets */
+const char *pox_preset_name     (int id);                /* display name, or NULL */
+/* Copy preset `name`'s seed tunables into `out`; returns 1 if found, else 0.
+ * "none" is accepted (its disabled seed) even though it is not listed above. */
+int         pox_preset_tunables (const char *name, PoxTunables *out);
+/* Emission kind for a preset name. "none" -> POX_KIND_NONE; an unknown name ->
+ * POX_KIND_AMBIENT (the historical fallback). */
+PoxKind     pox_kind_for_preset (const char *name);
+
 /* ---- colour palettes (burst + particle-preset colours) ---- */
 
 /* Max colours in any one palette. */
