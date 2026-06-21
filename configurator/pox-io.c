@@ -370,6 +370,21 @@ void pox_io_save_default_preset(const char *name)
   write_key("DefaultPreset", name);
 }
 
+int pox_io_load_grace(void)
+{
+  char *v = read_key("UnminimizeGrace");
+  int ms = as_int(v, 350);
+  g_free(v);
+  return CLAMP(ms, 0, 2000);
+}
+
+void pox_io_save_grace(int ms)
+{
+  char buf[16];
+  g_snprintf(buf, sizeof buf, "%d", CLAMP(ms, 0, 2000));
+  write_key("UnminimizeGrace", buf);
+}
+
 /* ---- live reload ---- */
 
 void pox_io_reconfigure(void)

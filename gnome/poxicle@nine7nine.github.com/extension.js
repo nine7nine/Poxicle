@@ -34,12 +34,14 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 const TICK_MS = 16;   // ~60fps; a vsync-locked frame clock is a later refinement.
 const VERT_STRIDE = 12;   // poxicle_engine_tick_vertices: f32 x,y + u8 r,g,b,a
 
-// Base time (logical ms) to hold a stream's particles back after its window starts
-// un-minimizing, so the ring doesn't snap in at the settled frame_rect while Magic
-// Lamp / Burn My Windows is still warping the window up from the panel. Mirrors the
-// KWin effect's kUnminimizeGraceMs; scaled at runtime by St.Settings so it tracks
-// the user's animation speed and collapses to 0 when animations are off/instant.
-const UNMINIMIZE_GRACE_MS = 350;
+// Default time (logical ms) to hold a stream's particles back after its window
+// starts un-minimizing, so the ring doesn't snap in at the settled frame_rect while
+// Magic Lamp / Burn My Windows is still warping the window up from the panel. The
+// live value is user-tunable via poxicle-config ([poxicle] UnminimizeGrace) and read
+// from CONFIG_PATH; this is the fallback. Scaled at runtime by St.Settings so it
+// tracks the user's animation speed and collapses to 0 when animations are off.
+// Mirrors the KWin effect's PoxConfig::unminimizeGraceMs().
+const UNMINIMIZE_GRACE_DEFAULT_MS = 350;
 
 // poxicle-config's DE-neutral config — the same file the KWin effect reads. The
 // engine resolves and applies it (Pox.Engine.apply_config); we only watch it.
@@ -136,9 +138,13 @@ export default class PoxicleExtension extends Extension {
             () => this._retarget());
 
         // Live-reload when poxicle-config saves the neutral config file.
+        this._readGrace();
         this._cfgMonitor = Gio.File.new_for_path(CONFIG_PATH)
             .monitor_file(Gio.FileMonitorFlags.WATCH_MOVES, null);
-        this._cfgMonitor.connect('changed', () => this._retarget());
+        this._cfgMonitor.connect('changed', () => {
+            this._readGrace();
+            this._retarget();
+        });
 
         this._retarget();
 
@@ -184,6 +190,21 @@ export default class PoxicleExtension extends Extension {
         this._area = null;
         this._engine = null;
         this._display = null;
+    }
+
+    // Read the user-tunable un-minimize grace from poxicle-config's neutral
+    // config (the same file the KWin effect reads). Missing/invalid => default.
+    _readGrace() {
+        let ms = UNMINIMIZE_GRACE_DEFAULT_MS;
+        try {
+            const kf = new GLib.KeyFile();
+            kf.load_from_file(CONFIG_PATH, GLib.KeyFileFlags.NONE);
+            if (kf.has_group('poxicle') && kf.has_key('poxicle', 'UnminimizeGrace'))
+                ms = kf.get_integer('poxicle', 'UnminimizeGrace');
+        } catch (_e) {
+            // no config yet / unreadable -> keep the default
+        }
+        this._graceMs = Math.max(0, Math.min(2000, ms));
     }
 
     // ---- ambient self-sim: active-window tracking ----
@@ -357,7 +378,7 @@ export default class PoxicleExtension extends Extension {
             if (s.wasMinimized && !minimizedNow) {
                 const st = St.Settings.get();
                 const factor = st.enable_animations ? st.slow_down_factor : 0;
-                s.suppressUntil = nowUs + UNMINIMIZE_GRACE_MS * 1000 * factor;
+                s.suppressUntil = nowUs + this._graceMs * 1000 * factor;
             }
             s.wasMinimized = minimizedNow;
 

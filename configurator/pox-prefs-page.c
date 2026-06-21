@@ -55,6 +55,17 @@ on_accent (GObject *btn, GParamSpec *ps, gpointer data)
   push (p);
 }
 
+/* The un-minimize grace is an EFFECT setting (poxicle group), not GUI styling:
+ * save it and ask the compositor to reload (the GNOME extension picks it up via
+ * its config-file monitor). */
+static void
+on_grace (GtkSpinButton *sp, gpointer data)
+{
+  (void) data;
+  pox_io_save_grace ((int) gtk_spin_button_get_value (sp));
+  pox_io_reconfigure ();
+}
+
 static GtkWidget *
 color_btn (const char *hex, GCallback cb, gpointer data)
 {
@@ -111,6 +122,23 @@ pox_prefs_page_new (void)
 
   p->accent = color_btn (p->ap.accent, G_CALLBACK (on_accent), p);
   add_row (GTK_GRID (grid), 3, "Accent Color", p->accent);
+
+  GtkWidget *bhdr = gtk_label_new ("Behavior");
+  gtk_widget_add_css_class (bhdr, "title-4");
+  gtk_widget_set_halign (bhdr, GTK_ALIGN_START);
+  gtk_widget_set_margin_top (bhdr, 14);
+  gtk_widget_set_margin_bottom (bhdr, 4);
+  gtk_grid_attach (GTK_GRID (grid), bhdr, 0, 4, 2, 1);
+
+  GtkWidget *grace = gtk_spin_button_new_with_range (0, 2000, 25);
+  gtk_spin_button_set_value (GTK_SPIN_BUTTON (grace), pox_io_load_grace ());
+  gtk_widget_set_halign (grace, GTK_ALIGN_START);
+  gtk_widget_set_tooltip_text (grace,
+    "How long streamed particles are held back after a window starts "
+    "un-minimizing, so the ring doesn't snap in over a still-animating window "
+    "(Magic Lamp / Burn My Windows). Scaled by your animation speed.");
+  g_signal_connect (grace, "value-changed", G_CALLBACK (on_grace), p);
+  add_row (GTK_GRID (grid), 5, "Un-minimize grace (ms)", grace);
 
   g_object_set_data_full (G_OBJECT (grid), "pox-prefs-page", p, g_free);
   return grid;

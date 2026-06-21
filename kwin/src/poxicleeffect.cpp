@@ -28,13 +28,13 @@ constexpr qreal kBandMargin = 48.0;
 // idle grace). A Wake() D-Bus call un-parks it.
 constexpr int kStreamIdleGrace = 4;
 
-// Base window (logical ms) to hold an external stream's particles back after its
-// window starts un-minimizing, so the ring doesn't snap in at full frameGeometry
-// over the still-animating window (Magic Lamp / Squash). Scaled at runtime by the
-// compositor's animationTimeFactor() so it tracks the user's animation-speed
-// setting and collapses to ~0 when animations are effectively instant. Slightly
-// generous vs. the default minimize animation so the ring never appears mid-flight.
-constexpr int kUnminimizeGraceMs = 350;
+// The base window (logical ms) to hold an external stream's particles back after
+// its window starts un-minimizing — so the ring doesn't snap in at full
+// frameGeometry over the still-animating window (Magic Lamp / Squash) — is now
+// user-tunable via poxicle-config: PoxConfig::unminimizeGraceMs() (default 350).
+// It is scaled at runtime by the compositor's animationTimeFactor() so it tracks
+// the user's animation-speed setting and collapses to ~0 when animations are
+// effectively instant.
 
 // Copy the latest COMPLETE frame from a producer's shared region into `out`,
 // surface-local coords (the caller offsets by the window rect). Returns true only
@@ -523,7 +523,7 @@ void PoxicleEffect::prePaintScreen(KWin::ScreenPrePaintData &data,
             const bool minimizedNow = s.window->isMinimized();
             if (s.wasMinimized && !minimizedNow) {
                 s.suppressUntil = presentTime + std::chrono::milliseconds(
-                    int(kUnminimizeGraceMs * KWin::effects->animationTimeFactor()));
+                    int(m_config.unminimizeGraceMs() * KWin::effects->animationTimeFactor()));
             }
             s.wasMinimized = minimizedNow;
             s.suppressed = presentTime < s.suppressUntil;

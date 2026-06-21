@@ -56,6 +56,11 @@ public:
     // no Active rule is set or its preset is "none".
     PoxResolved resolveActive() const;
 
+    // How long (logical ms) to hold a streamed window's particles back after it
+    // starts un-minimizing, so the ring doesn't snap in over a still-animating
+    // window. Scaled by animationTimeFactor() at use. Default 350.
+    int unminimizeGraceMs() const { return m_unminimizeGrace; }
+
 private:
     struct Rule {
         QString  appId;
@@ -80,4 +85,5 @@ private:
     QList<Rule>                 m_rules;
     Rule                        m_active;           // focus-following "active window" target
     bool                        m_activeSet = false;
+    int                         m_unminimizeGrace = 350;   // ms; see unminimizeGraceMs()
 };

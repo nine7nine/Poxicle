@@ -172,6 +172,9 @@ void PoxConfig::load()
             m_activeSet = true;
         }
     }
+
+    // Un-minimize grace (ms) — global behaviour, written by poxicle-config.
+    m_unminimizeGrace = qBound(0, g.readEntry("UnminimizeGrace", 350), 2000);
 }
 
 PoxConfig::Rule PoxConfig::parseRule(const QStringList &f, int base)

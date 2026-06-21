@@ -87,6 +87,13 @@ void       pox_io_save_active   (const PoxRule *r);
 char  *pox_io_load_default_preset (void);                /* newly-allocated */
 void   pox_io_save_default_preset (const char *name);
 
+/* Un-minimize grace (ms): how long the effect / GNOME extension hold a streamed
+ * window's particles back after it starts un-minimizing, so the ring doesn't snap
+ * in over a still-animating window. Stored in the effect's "poxicle" group (both
+ * the KWin effect and the GNOME extension read it); default 350. */
+int    pox_io_load_grace          (void);
+void   pox_io_save_grace          (int ms);
+
 void   pox_io_reconfigure       (void);   /* DBus: KWin reload the effect, live */
 
 /* Interactive KWin window picker (the Wayland-safe way to grab an app id — a
