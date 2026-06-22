@@ -8,6 +8,8 @@
 #include <core/renderbackend.h>   // KWin::OutputFrame (present-time source)
 #include <scene/scene.h>   // KWin::RenderView
 
+#include <algorithm>   // std::min/std::max for the ring-repaint thickness
+
 #include <QMatrix4x4>
 #include <QDBusConnection>
 #include <QDBusUnixFileDescriptor>
@@ -61,6 +63,43 @@ bool readStreamFrame(PoxBridgeHeader *h, uint32_t capacity, uint32_t &lastSeq,
         }
     }
     return false;   // producer churning faster than we can read; try next frame
+}
+
+// Request a per-frame repaint of ONLY the ring this frame's particles occupy,
+// not the whole window rect. `t` is the deepest any block reaches in from its
+// nearest edge; four strips of that thickness contain every block (each block
+// sits within `t` of an edge) and leave the window interior untouched. That
+// interior is the cost: damaging it forces KWin to recomposite the whole stack
+// behind a translucent (glass) window across the window's full area every frame
+// — near-free for the thin ring, expensive for the full rect on a big display.
+// A deep effect (centre burst / spray) grows `t` until the strips meet, falling
+// back to a full-window band; it never under-damages, so no trails. Empty /
+// invisible => no repaint, so an idle tracked window lets KWin sleep.
+void requestRingRepaint(const QRectF &geom, const std::vector<PoxInstance> &insts)
+{
+    if (insts.empty() || geom.isEmpty())
+        return;
+
+    const qreal x0 = geom.x(), y0 = geom.y();
+    const qreal x1 = x0 + geom.width(), y1 = y0 + geom.height();
+    qreal t = 0.0;
+    for (const PoxInstance &i : insts) {
+        // Distance from each edge to the block's far side; the min is how thick
+        // that block's nearest-edge strip must be to fully contain it.
+        const qreal d = std::min(std::min(qreal(i.y + i.size) - y0, y1 - qreal(i.y)),
+                                 std::min(qreal(i.x + i.size) - x0, x1 - qreal(i.x)));
+        if (d > t)
+            t = d;
+    }
+    if (t < 0.0)
+        t = 0.0;
+    t = std::min(t, std::max(geom.width(), geom.height()));   // cap at full band
+
+    const qreal M = kBandMargin;
+    KWin::effects->addRepaint(QRectF(x0 - M, y0 - M, geom.width() + 2 * M, t + M));    // top
+    KWin::effects->addRepaint(QRectF(x0 - M, y1 - t, geom.width() + 2 * M, t + M));    // bottom
+    KWin::effects->addRepaint(QRectF(x0 - M, y0 - M, t + M, geom.height() + 2 * M));   // left
+    KWin::effects->addRepaint(QRectF(x1 - t, y0 - M, t + M, geom.height() + 2 * M));   // right
 }
 }
 
@@ -683,33 +722,27 @@ void PoxicleEffect::paintWindow(const KWin::RenderTarget &renderTarget,
 
 void PoxicleEffect::postPaintScreen()
 {
-    // Keep frames coming while anything animates, but repaint ONLY each tracked
-    // window's edge band — not the whole screen. KWin then recomposites a small
-    // area per frame instead of the full panel (the overdraw cost that matters on
-    // a big display). idle = no repaint requested, so KWin can sleep.
+    // Keep frames coming while anything animates, but repaint ONLY the ring each
+    // source's particles occupy this frame (requestRingRepaint) — not the whole
+    // window rect. Damaging a translucent window's interior forces KWin to
+    // recomposite the whole stack behind it; the ring is a thin frame, so this is
+    // the dominant overdraw win on a big display. No particles / invisible => no
+    // repaint requested, so KWin can sleep.
     if (m_active) {
         for (const auto &entry : m_windows) {
-            if (!visible(entry.first))
-                continue;
-            const QRectF band = entry.second.geom.adjusted(-kBandMargin, -kBandMargin,
-                                                           kBandMargin, kBandMargin);
-            KWin::effects->addRepaint(band);
+            if (visible(entry.first))
+                requestRingRepaint(entry.second.geom, entry.second.instances);
         }
         // The active window may have no per-app rule (not in m_windows) yet still
-        // carry the overlay — repaint its band too.
-        if (m_activeEngine && m_activeWindow && visible(m_activeWindow)) {
-            const QRectF band = m_activeGeom.adjusted(-kBandMargin, -kBandMargin,
-                                                      kBandMargin, kBandMargin);
-            KWin::effects->addRepaint(band);
-        }
-        // External-source windows live outside m_windows; repaint their bands so
+        // carry the focus overlay — repaint its ring too.
+        if (m_activeEngine && m_activeWindow && visible(m_activeWindow))
+            requestRingRepaint(m_activeGeom, m_activeInstances);
+        // External-source windows live outside m_windows; repaint their rings so
         // the streamed particles keep compositing while the producer is active.
         for (const auto &kv : m_streams) {
             const ExtStream &s = kv.second;
-            if (s.window && visible(s.window) && !s.instances.empty()) {
-                KWin::effects->addRepaint(s.geom.adjusted(
-                    -kBandMargin, -kBandMargin, kBandMargin, kBandMargin));
-            }
+            if (s.window && visible(s.window))
+                requestRingRepaint(s.geom, s.instances);
         }
     }
     KWin::effects->postPaintScreen();
