@@ -69,6 +69,8 @@ private Q_SLOTS:
     void slotWindowAdded(KWin::EffectWindow *w);
     void slotWindowClosed(KWin::EffectWindow *w);
     void slotWindowActivated(KWin::EffectWindow *w);
+    void slotMinimizedChanged(KWin::EffectWindow *w);   // arm the hold on un-minimize
+    void slotShowingDesktopChanged(bool showing);       // arm the hold on un-hide
 
 private:
     struct WinFx {
@@ -91,9 +93,17 @@ private:
         KWin::EffectWindow      *window = nullptr;  // bound window (null = unbound)
         QRectF                   geom;          // bound window geometry (logical)
         std::vector<PoxInstance> instances;     // this frame, global logical coords
-        bool                     wasMinimized = false;   // previous frame's isMinimized()
-        std::chrono::milliseconds suppressUntil{0};      // hold particles until this present-time
-        bool                     suppressed = false;     // this frame: inside the un-minimize grace
+    };
+
+    // Per-window un-minimize / un-hide hold. A window restoring from minimized or
+    // Show-Desktop plays an animation (Magic Lamp, Squash, …) while we'd otherwise
+    // draw its ring at the settled frameGeometry — snapping in over the still-moving
+    // window. Keyed by EffectWindow (NOT by source) so it covers per-app, overlay
+    // and stream particles alike, and survives a producer re-registering its stream
+    // across the minimize. Armed from KWin's own state-change signals.
+    struct Restore {
+        std::chrono::milliseconds until{0};   // hold until this present-time (0 = inactive)
+        bool                      sawScale = false;  // a foreign affine transform was seen
     };
 
     bool eligible(KWin::EffectWindow *w) const;   // a window type we ever decorate
@@ -103,6 +113,9 @@ private:
     void rebuildActiveEngine();                   // (re)create/free the focus overlay engine
     void pointActiveAt(KWin::EffectWindow *w);    // aim the overlay at a window + re-arm it
 
+    void armRestore(KWin::EffectWindow *w);       // start an un-minimize/un-hide hold on w
+    bool restoreHeld(KWin::EffectWindow *w) const;// true while w's timed (non-affine) hold runs
+
     // External-source helpers.
     void        bindStreams();                    // bind unbound streams to a pid-matched window
     void        dropStream(int pid);              // unmap + close + erase a registered stream
@@ -111,6 +124,7 @@ private:
 
     std::unordered_map<KWin::EffectWindow *, WinFx> m_windows;
     std::unordered_map<int, ExtStream>              m_streams;   // keyed by producer pid
+    std::unordered_map<KWin::EffectWindow *, Restore> m_restore; // un-minimize/un-hide holds
     std::vector<PoxInstance>  m_scratch;    // one window's per-frame tick output
     std::vector<PoxInstance>  m_streamScratch;  // one stream's per-frame shm read
     PoxGL                    *m_gl = nullptr;

@@ -140,6 +140,13 @@ void       pox_engine_free (PoxEngine *e);
 /* Surface being framed, in pixels, plus integer scale factor for HiDPI. */
 void pox_engine_set_surface  (PoxEngine *e, int width, int height, int scale);
 
+/* Window corner rounding, in surface pixels: `top` rounds the two top corners,
+ * `bottom` the two bottom corners — so a host can match KDE (top corners only) or
+ * GNOME (all corners). 0 (the default) keeps square corners. Each is clamped to
+ * <= min(width,height)/2. The whole particle ring follows the rounded perimeter:
+ * every preset, the ambient/fireworks bursts, the overscroll beam and the ring. */
+void pox_engine_set_corner_radius (PoxEngine *e, int top, int bottom);
+
 /* Tunables for the ambient/global stream. Copied; caller keeps ownership. */
 void pox_engine_set_tunables (PoxEngine *e, const PoxTunables *t);
 

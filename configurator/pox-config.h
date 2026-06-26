@@ -94,6 +94,15 @@ void   pox_io_save_default_preset (const char *name);
 int    pox_io_load_grace          (void);
 void   pox_io_save_grace          (int ms);
 
+/* Window corner rounding (px), stored in the effect's "poxicle" group as
+ * CornerTop / CornerBottom (both the KWin effect and the GNOME extension read
+ * them): how far the particle ring rounds the top vs bottom window corners, so it
+ * follows KDE (top only) or GNOME (all four) rounding. 0 => square; default 0. */
+int    pox_io_load_corner_top     (void);
+void   pox_io_save_corner_top     (int px);
+int    pox_io_load_corner_bottom  (void);
+void   pox_io_save_corner_bottom  (int px);
+
 void   pox_io_reconfigure       (void);   /* DBus: KWin reload the effect, live */
 
 /* Interactive KWin window picker (the Wayland-safe way to grab an app id — a

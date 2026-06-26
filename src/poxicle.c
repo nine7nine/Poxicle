@@ -29,6 +29,7 @@ typedef struct {
 struct PoxEngine {
   int         width, height, scale;
   double      perim;
+  int         corner_top, corner_bottom;  /* corner rounding radii, px (0 = square) */
 
   PoxTunables tune;            /* global / ambient stream */
 
@@ -279,6 +280,87 @@ PoxKind pox_kind_for_preset(const char *name)
   return d ? d->kind : POX_KIND_AMBIENT;   /* unknown -> ambient (historical fallback) */
 }
 
+/* Map a perimeter position `d` (px, 0..2(w+h) clockwise from the top-left) to a
+ * block's top-left (px,py) of size `bb`, hugging the inside edge, plus the
+ * triangle facing angle. The square-corner mapping — the historical behaviour.
+ * Each edge's parameterisation runs a block past its far corner, so a block
+ * straddling a turn pokes outside the rect; clamp it fully inside [0,w-bb] x
+ * [0,h-bb] (this single full-surface overlay has no per-side clip to do it for us). */
+static void block_at(double w, double h, double d, float bb, int trail_dir,
+                     float *out_px, float *out_py, float *out_tri)
+{
+  float px, py, tri;
+  if (d < w)            { px = (float) d;                       py = 0.0f;            tri = (trail_dir == -1) ? 0.0f   : 180.0f; }
+  else if (d < w + h)   { px = (float) (w - bb);                py = (float)(d - w);  tri = (trail_dir == -1) ? 90.0f  : 270.0f; }
+  else if (d < 2*w + h) { px = (float)(w - (d - w - h) - bb);   py = (float)(h - bb); tri = (trail_dir == -1) ? 180.0f : 0.0f;   }
+  else                  { px = 0.0f;                            py = (float)(h - (d - 2*w - h) - bb); tri = (trail_dir == -1) ? 270.0f : 90.0f; }
+
+  float max_x = (float) w - bb, max_y = (float) h - bb;
+  if (max_x < 0.0f) max_x = 0.0f;
+  if (max_y < 0.0f) max_y = 0.0f;
+  if (px < 0.0f) px = 0.0f; else if (px > max_x) px = max_x;
+  if (py < 0.0f) py = 0.0f; else if (py > max_y) py = max_y;
+
+  *out_px = px; *out_py = py; *out_tri = tri;
+}
+
+/* As block_at, but rounds the corners. Within `r` perimeter-px of a corner the
+ * block follows a quadratic Bézier from the straight run, through the sharp corner
+ * point, to the next straight run — the curve's endpoints coincide with the square
+ * mapping, so the straight edges are untouched and there's no seam where the arc
+ * meets them. `r_top` rounds the two top (y=0) corners, `r_bot` the two bottom
+ * (y=h) corners. r==0 => square (the historical path, bit-for-bit). */
+static void block_at_rounded(double w, double h, double d, float bb, int trail_dir,
+                             float r_top, float r_bot,
+                             float *out_px, float *out_py, float *out_tri)
+{
+  double perim = 2.0 * (w + h);
+  d = fmod(d + perim, perim);
+
+  /* Cap each radius at half the shorter side so two corners can't claim the same
+   * edge and arcs never overlap (the host clamps too, this is belt-and-braces). */
+  float rmax = 0.5f * (float) (w < h ? w : h);
+  if (r_top > rmax) r_top = rmax;
+  if (r_top < 0.0f) r_top = 0.0f;
+  if (r_bot > rmax) r_bot = rmax;
+  if (r_bot < 0.0f) r_bot = 0.0f;
+
+  const double land[4] = { 0.0, w, w + h, 2.0 * w + h };  /* TL, TR, BR, BL corners */
+  const float  rad[4]  = { r_top, r_top, r_bot, r_bot };
+
+  for (int c = 0; c < 4; c++) {
+    double r = rad[c];
+    if (r <= 0.0) continue;
+
+    double u;
+    if (c == 0) {                       /* top-left: zone wraps the 0/perim seam */
+      if (d <= r)               u = (d + r) / (2.0 * r);
+      else if (d >= perim - r)  u = (d - (perim - r)) / (2.0 * r);
+      else continue;
+    } else {
+      if (d < land[c] - r || d > land[c] + r) continue;
+      u = (d - (land[c] - r)) / (2.0 * r);
+    }
+
+    /* Sample the square mapping at the corner's entry / sharp point / exit; the
+     * entry of the top-left corner sits a radius back along the left edge. */
+    double d0 = (c == 0) ? perim - r : land[c] - r;
+    float p0x, p0y, p0t, p1x, p1y, p1t, p2x, p2y, p2t;
+    block_at(w, h, d0,           bb, trail_dir, &p0x, &p0y, &p0t);
+    block_at(w, h, land[c],      bb, trail_dir, &p1x, &p1y, &p1t);
+    block_at(w, h, land[c] + r,  bb, trail_dir, &p2x, &p2y, &p2t);
+
+    float fu = (float) u, mu = 1.0f - fu;
+    float a0 = mu * mu, a1 = 2.0f * mu * fu, a2 = fu * fu;
+    *out_px  = a0 * p0x + a1 * p1x + a2 * p2x;
+    *out_py  = a0 * p0y + a1 * p1y + a2 * p2y;
+    *out_tri = p0t + fu * 90.0f;        /* the block turns 90° across the corner */
+    return;
+  }
+
+  block_at(w, h, d, bb, trail_dir, out_px, out_py, out_tri);
+}
+
 /* ---- one trailing segment → instances (ported from kgx_edge_draw_segment,
  * minus the four-widget side cull: this surface covers the whole perimeter) ---- */
 static void emit_segment(PoxEngine *e, PoxInstance *out, size_t *count, size_t cap,
@@ -338,26 +420,9 @@ static void emit_segment(PoxEngine *e, PoxInstance *out, size_t *count, size_t c
     }
 
     float bb = (float) block_blk;
-    float px, py, tri = 0.0f;
-    if (d < w)            { px = (float) d;                       py = 0.0f;            tri = (trail_dir == -1) ? 0.0f   : 180.0f; }
-    else if (d < w + h)   { px = (float) (w - bb);                py = (float)(d - w);  tri = (trail_dir == -1) ? 90.0f  : 270.0f; }
-    else if (d < 2*w + h) { px = (float)(w - (d - w - h) - bb);   py = (float)(h - bb); tri = (trail_dir == -1) ? 180.0f : 0.0f;   }
-    else                  { px = 0.0f;                            py = (float)(h - (d - 2*w - h) - bb); tri = (trail_dir == -1) ? 270.0f : 90.0f; }
-
-    /* Hug the inside edge through corners. Each edge's parameterisation runs a
-     * block past its far corner (top: px=d -> w+bb; bottom/left: px/py -> -bb),
-     * so a block straddling a turn pokes outside the window rect. Chiguiro gets
-     * this for free — it draws into four per-side widgets and clips each block
-     * to its strip. This single full-surface overlay has no such clip, so clamp
-     * the block fully inside [0,w-bb] x [0,h-bb] here instead; otherwise corner
-     * blocks bleed out on turning. */
-    {
-      float max_x = (float) w - bb, max_y = (float) h - bb;
-      if (max_x < 0.0f) max_x = 0.0f;
-      if (max_y < 0.0f) max_y = 0.0f;
-      if (px < 0.0f) px = 0.0f; else if (px > max_x) px = max_x;
-      if (py < 0.0f) py = 0.0f; else if (py > max_y) py = max_y;
-    }
+    float px, py, tri;
+    block_at_rounded(w, h, d, bb, trail_dir,
+                     (float) e->corner_top, (float) e->corner_bottom, &px, &py, &tri);
 
     float a = alpha * (1.0f - 0.7f * t);
     if (s > 0 && tune->pulse_depth > 0.0) {
@@ -486,6 +551,12 @@ void pox_engine_set_surface(PoxEngine *e, int width, int height, int scale)
 {
   e->width = width; e->height = height; e->scale = scale > 0 ? scale : 1;
   e->perim = 2.0 * (width + height);
+}
+
+void pox_engine_set_corner_radius(PoxEngine *e, int top, int bottom)
+{
+  e->corner_top    = top > 0 ? top : 0;
+  e->corner_bottom = bottom > 0 ? bottom : 0;
 }
 
 void pox_engine_set_tunables(PoxEngine *e, const PoxTunables *t) { e->tune = *t; }

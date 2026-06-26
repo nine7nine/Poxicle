@@ -385,6 +385,28 @@ void pox_io_save_grace(int ms)
   write_key("UnminimizeGrace", buf);
 }
 
+/* ---- window corner rounding (px) ---- */
+
+static int load_corner(const char *key)
+{
+  char *v = read_key(key);
+  int px = as_int(v, 0);
+  g_free(v);
+  return CLAMP(px, 0, 200);
+}
+
+static void save_corner(const char *key, int px)
+{
+  char buf[16];
+  g_snprintf(buf, sizeof buf, "%d", CLAMP(px, 0, 200));
+  write_key(key, buf);
+}
+
+int  pox_io_load_corner_top    (void)      { return load_corner("CornerTop"); }
+void pox_io_save_corner_top    (int px)    { save_corner("CornerTop", px); }
+int  pox_io_load_corner_bottom (void)      { return load_corner("CornerBottom"); }
+void pox_io_save_corner_bottom (int px)    { save_corner("CornerBottom", px); }
+
 /* ---- live reload ---- */
 
 void pox_io_reconfigure(void)

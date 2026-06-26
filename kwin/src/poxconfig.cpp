@@ -175,6 +175,24 @@ void PoxConfig::load()
 
     // Un-minimize grace (ms) — global behaviour, written by poxicle-config.
     m_unminimizeGrace = qBound(0, g.readEntry("UnminimizeGrace", 350), 2000);
+
+    // Window corner rounding (px) — global, written by poxicle-config. Applied to
+    // each per-window engine after set_surface; the engine caps it at min(w,h)/2.
+    m_cornerTop    = qBound(0, g.readEntry("CornerTop", 0), 1000);
+    m_cornerBottom = qBound(0, g.readEntry("CornerBottom", 0), 1000);
+
+    // Match the un-minimize hold to the *actual* minimize animation. Magic Lamp is
+    // a non-affine warp with no transform we can read, so we can't release on a
+    // settle signal — we hold for the animation's configured length instead. Read
+    // it from the live kwinrc; only meaningful while that effect is enabled. Other
+    // minimize effects (Squash/Glide) are affine and release precisely via the
+    // scale guard, so they don't need this.
+    m_minimizeAnim = 0;
+    KConfig kwin(QStringLiteral("kwinrc"));
+    if (kwin.group(QStringLiteral("Plugins")).readEntry("magiclampEnabled", false)) {
+        m_minimizeAnim = qBound(0, kwin.group(QStringLiteral("Effect-magiclamp"))
+                                       .readEntry("AnimationDuration", 250), 5000);
+    }
 }
 
 PoxConfig::Rule PoxConfig::parseRule(const QStringList &f, int base)

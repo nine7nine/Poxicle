@@ -31,13 +31,15 @@ constexpr qreal kBandMargin = 48.0;
 // idle grace). A Wake() D-Bus call un-parks it.
 constexpr int kStreamIdleGrace = 4;
 
-// The base window (logical ms) to hold an external stream's particles back after
-// its window starts un-minimizing — so the ring doesn't snap in at full
-// frameGeometry over the still-animating window (Magic Lamp / Squash) — is now
-// user-tunable via poxicle-config: PoxConfig::unminimizeGraceMs() (default 350).
-// It is scaled at runtime by the compositor's animationTimeFactor() so it tracks
-// the user's animation-speed setting and collapses to ~0 when animations are
-// effectively instant.
+// How long (logical ms) to hold a window's particles back after it starts
+// un-minimizing / un-hiding — so the ring doesn't snap in at full frameGeometry
+// over the still-animating window (Magic Lamp / Squash / Show-Desktop). The base
+// comes from the active minimize animation's own duration (PoxConfig::
+// minimizeAnimMs(), e.g. Magic Lamp's AnimationDuration), floored by the tunable
+// PoxConfig::unminimizeGraceMs() (default 350), then scaled by the compositor's
+// animationTimeFactor() so it tracks the user's animation-speed setting. This
+// small tail is added on top so the ring never reappears a frame early.
+constexpr int kRestoreTailMs = 60;
 
 // Copy the latest COMPLETE frame from a producer's shared region into `out`,
 // surface-local coords (the caller offsets by the window rect). Returns true only
@@ -130,11 +132,18 @@ PoxicleEffect::PoxicleEffect()
             this, &PoxicleEffect::slotWindowClosed);   // also tear down when destroyed
     connect(KWin::effects, &KWin::EffectsHandler::windowActivated,
             this, &PoxicleEffect::slotWindowActivated);
+    // Un-hide (Show-Desktop off) restores every window at once — a global signal.
+    connect(KWin::effects, &KWin::EffectsHandler::showingDesktopChanged,
+            this, &PoxicleEffect::slotShowingDesktopChanged);
 
-    // Attach to windows already open when the effect loads.
+    // Attach to windows already open when the effect loads, and watch each one's
+    // minimized state so we can hold its ring back while it animates back in.
     const auto windows = KWin::effects->stackingOrder();
-    for (KWin::EffectWindow *w : windows)
+    for (KWin::EffectWindow *w : windows) {
+        connect(w, &KWin::EffectWindow::minimizedChanged,
+                this, &PoxicleEffect::slotMinimizedChanged);
         maybeAttach(w);
+    }
 
     // Seed the focus-following overlay against whatever is focused right now.
     KWin::EffectWindow *aw = KWin::effects->activeWindow();
@@ -186,7 +195,57 @@ bool PoxicleEffect::eligible(KWin::EffectWindow *w) const
 
 bool PoxicleEffect::visible(KWin::EffectWindow *w) const
 {
-    return w && w->isOnCurrentDesktop() && !w->isMinimized();
+    return w && w->isOnCurrentDesktop() && !w->isMinimized()
+        && !w->isHiddenByShowDesktop();
+}
+
+// A window started restoring from minimized — KWin flips isMinimized() to false at
+// the START of the animation, while the warp still plays. Hold the ring back until
+// the animation is done. Keyed on the window, so it works whether this window draws
+// per-app, overlay or streamed particles, and survives a producer re-registering.
+void PoxicleEffect::slotMinimizedChanged(KWin::EffectWindow *w)
+{
+    if (w && !w->isMinimized())
+        armRestore(w);
+}
+
+// Show-Desktop turned off: every hidden window animates back in at once.
+void PoxicleEffect::slotShowingDesktopChanged(bool showing)
+{
+    if (showing)
+        return;
+    for (const auto &kv : m_windows)
+        armRestore(kv.first);
+    for (const auto &kv : m_streams)
+        armRestore(kv.second.window);
+    armRestore(m_activeWindow);
+}
+
+// Begin (or extend) a restore hold on w, long enough to cover the active minimize
+// animation. A non-affine warp (Magic Lamp) shows no transform we can release on,
+// so we hold for the animation's configured length; an affine restore (Squash /
+// Glide) is released early the moment its scale settles (see paintWindow). The
+// floor (unminimizeGraceMs) covers effects we can't read a duration for.
+void PoxicleEffect::armRestore(KWin::EffectWindow *w)
+{
+    if (!w || !eligible(w))
+        return;
+    const int base = std::max(m_config.minimizeAnimMs(), m_config.unminimizeGraceMs());
+    const int ms = int(base * KWin::effects->animationTimeFactor()) + kRestoreTailMs;
+    Restore &r = m_restore[w];
+    r.until = m_lastPresent + std::chrono::milliseconds(ms);
+    r.sawScale = false;
+    KWin::effects->addRepaintFull();   // keep compositing so the hold can release
+}
+
+// True while w is inside a *timed* (non-affine) restore hold — i.e. the deadline
+// has not passed and no foreign affine transform has been seen (those release via
+// the scale guard instead). Used to suppress drawing + skip wasteful repaints.
+bool PoxicleEffect::restoreHeld(KWin::EffectWindow *w) const
+{
+    const auto it = m_restore.find(w);
+    return it != m_restore.end() && !it->second.sawScale
+        && it->second.until.count() != 0 && m_lastPresent < it->second.until;
 }
 
 // Apply a resolved rule's burst/particle palette to an engine: a built-in
@@ -222,6 +281,7 @@ void PoxicleEffect::maybeAttach(KWin::EffectWindow *w)
     fx.engine = pox_engine_new();
     fx.geom = w->frameGeometry();
     pox_engine_set_surface(fx.engine, int(fx.geom.width()), int(fx.geom.height()), 1);
+    pox_engine_set_corner_radius(fx.engine, m_config.cornerTop(), m_config.cornerBottom());
     pox_engine_set_tunables(fx.engine, &r.tunables);
     fx.color = r.color;
     // Drive the preset's actual motion (corners/rotate/ping-pong/pulse-out loop;
@@ -377,6 +437,9 @@ void PoxicleEffect::Wake(int pid)
 
 void PoxicleEffect::slotWindowAdded(KWin::EffectWindow *w)
 {
+    if (w)
+        connect(w, &KWin::EffectWindow::minimizedChanged,
+                this, &PoxicleEffect::slotMinimizedChanged);
     bindStreams();   // a stream registered before its window mapped binds here
     maybeAttach(w);  // skips w if a stream now claims it
 }
@@ -395,6 +458,7 @@ void PoxicleEffect::slotWindowClosed(KWin::EffectWindow *w)
         s->window = nullptr;
         s->instances.clear();
     }
+    m_restore.erase(w);
     detach(w);
 }
 
@@ -427,6 +491,7 @@ void PoxicleEffect::pointActiveAt(KWin::EffectWindow *w)
     const QRectF g = w->frameGeometry();
     m_activeGeom = g;
     pox_engine_set_surface(m_activeEngine, int(g.width()), int(g.height()), 1);
+    pox_engine_set_corner_radius(m_activeEngine, m_config.cornerTop(), m_config.cornerBottom());
     pox_engine_set_tunables(m_activeEngine, &m_activeResolved.tunables);
     pox_engine_set_kind(m_activeEngine, m_activeResolved.kind,
                         m_activeResolved.reverse, m_activeResolved.color);
@@ -490,8 +555,8 @@ void PoxicleEffect::prePaintScreen(KWin::ScreenPrePaintData &data)
             KWin::EffectWindow *w = entry.first;
             WinFx &fx = entry.second;
 
-            if (!visible(w)) {
-                fx.instances.clear();   // off the current desktop / minimized => don't draw
+            if (!visible(w) || restoreHeld(w)) {
+                fx.instances.clear();   // hidden, or held back mid un-minimize => don't draw
                 continue;
             }
 
@@ -527,7 +592,8 @@ void PoxicleEffect::prePaintScreen(KWin::ScreenPrePaintData &data)
         // its particles in that window's global coords. Drawn on TOP of the
         // window's own per-app particles in paintWindow() (independent layer).
         m_activeInstances.clear();
-        if (m_activeEngine && m_activeWindow && visible(m_activeWindow)) {
+        if (m_activeEngine && m_activeWindow && visible(m_activeWindow)
+            && !restoreHeld(m_activeWindow)) {
             const QRectF g = m_activeWindow->frameGeometry();
             if (g.size() != m_activeGeom.size())
                 pox_engine_set_surface(m_activeEngine, int(g.width()), int(g.height()), 1);
@@ -553,29 +619,20 @@ void PoxicleEffect::prePaintScreen(KWin::ScreenPrePaintData &data)
         // so KWin can sleep until Wake() or a new frame.
         for (auto &kv : m_streams) {
             ExtStream &s = kv.second;
-            s.suppressed = false;
             if (!s.window) {
                 s.instances.clear();
                 continue;
             }
 
-            // Un-minimize edge (minimized -> not): isMinimized() flips back to
-            // false at the START of the restore, while the Magic Lamp / Squash
-            // animation is still playing. The PAINT_WINDOW_TRANSFORMED guard in
-            // paintWindow() does not fire for the lamp's non-affine vertex warp,
-            // so without this the ring would snap in at full frameGeometry over the
-            // still-animating window. Arm a short grace and hold it back instead;
-            // scaled by animationTimeFactor() so it tracks the user's animation
-            // speed (and is ~0 when animations are effectively instant).
-            const bool minimizedNow = s.window->isMinimized();
-            if (s.wasMinimized && !minimizedNow) {
-                s.suppressUntil = presentTime + std::chrono::milliseconds(
-                    int(m_config.unminimizeGraceMs() * KWin::effects->animationTimeFactor()));
-            }
-            s.wasMinimized = minimizedNow;
-            s.suppressed = presentTime < s.suppressUntil;
-
-            if (!visible(s.window) || s.suppressed) {
+            // Hold the ring back while the window animates back from minimized /
+            // Show-Desktop. isMinimized() flips to false at the START of the restore
+            // (the Magic Lamp warp still plays), and that warp is non-affine so the
+            // scale guard in paintWindow() never fires for it — without the hold the
+            // ring would snap in at full frameGeometry over the still-moving window.
+            // The hold is armed from KWin's minimizedChanged / showingDesktopChanged
+            // signals (slotMinimizedChanged / slotShowingDesktopChanged), keyed on
+            // the window so it survives the producer re-registering its stream.
+            if (!visible(s.window) || restoreHeld(s.window)) {
                 s.instances.clear();
                 continue;
             }
@@ -638,31 +695,34 @@ void PoxicleEffect::paintWindow(const KWin::RenderTarget &renderTarget,
     // particles above the whole scene, so they floated over everything.)
     KWin::effects->paintWindow(renderTarget, viewport, w, mask, deviceRegion, data);
 
-    // While another effect applies an AFFINE transform to this window — overview,
-    // desktop grid, Squash — our particles would be drawn at the settled
-    // frameGeometry, detached from the in-flight transform (a crisp rectangle of
-    // particles floating where the window WILL land). Skip them until it settles.
-    // Interactive move/resize is exempt: that is a pure translation we follow via
-    // data.translation() below. NB: the Magic Lamp un-minimize warp is non-affine
-    // and does NOT set this flag for us — that case is handled by the un-minimize
-    // grace below (and in prePaintScreen), not here.
-    // We now set PAINT_WINDOW_TRANSFORMED ourselves (above, to paint outside the
-    // frame), so that bit no longer tells us a *foreign* effect is transforming the
-    // window. Detect that via a non-identity scale instead — overview, desktop grid,
-    // present-windows, Squash minimize and maximize all scale the window, and our
-    // particles (pinned to the settled frameGeometry) would float detached from the
-    // in-flight transform. Pure interactive move/resize is a translation we already
-    // follow via data.*Translation() below, so it stays exempt.
-    if ((data.xScale() != 1.0 || data.yScale() != 1.0 || data.zScale() != 1.0)
-        && !w->isUserMove() && !w->isUserResize())
-        return;
+    // A FOREIGN AFFINE transform on this window — overview, desktop grid, Squash,
+    // Glide, maximize — would leave our particles drawn at the settled frameGeometry,
+    // a crisp rectangle floating where the window WILL land. Suppress until it
+    // settles. Interactive move/resize is exempt: that is a pure translation we
+    // follow via data.*Translation() below. We set PAINT_WINDOW_TRANSFORMED ourselves
+    // (above, to paint outside the frame), so detect a foreign transform by a
+    // non-identity scale, not that bit.
+    const bool affine = (data.xScale() != 1.0 || data.yScale() != 1.0 || data.zScale() != 1.0)
+                        && !w->isUserMove() && !w->isUserResize();
 
-    // Hold every particle layer (per-app, overlay, and stream) for a streamed
-    // window still inside its un-minimize grace — prePaintScreen tracks the
-    // deadline and already clears the stream's own instances; this also keeps the
-    // focus overlay off it until the restore animation settles.
-    if (ExtStream *gs = streamFor(w); gs && gs->suppressed)
-        return;
+    // The restore hold (armed from minimizedChanged / showingDesktopChanged) covers
+    // every particle layer — per-app, overlay and stream — for a window animating
+    // back from minimized / Show-Desktop. An affine restore (Squash / Glide) is
+    // released the instant its scale settles; a non-affine one (Magic Lamp shows no
+    // scale) is held for the timed deadline. prePaintScreen already cleared the
+    // timed-held instances; this also keeps the focus overlay off the window.
+    if (auto rit = m_restore.find(w); rit != m_restore.end()) {
+        if (affine) {
+            rit->second.sawScale = true;   // affine restore: release on scale settle
+            return;
+        }
+        if (rit->second.sawScale)
+            m_restore.erase(rit);          // that affine restore has settled -> release
+        else if (rit->second.until.count() != 0 && m_lastPresent < rit->second.until)
+            return;                        // non-affine restore (Magic Lamp) still playing
+    } else if (affine) {
+        return;                            // foreign affine transform, no restore pending
+    }
 
     auto it = m_windows.find(w);
     const bool perApp = (it != m_windows.end() && !it->second.instances.empty());

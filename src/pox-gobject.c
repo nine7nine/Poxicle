@@ -78,6 +78,24 @@ poxicle_engine_set_surface(PoxicleEngine *self, int width, int height, int scale
 }
 
 /**
+ * poxicle_engine_set_corner_radius:
+ * @self: a #PoxicleEngine
+ * @top: radius (px) for the two top corners
+ * @bottom: radius (px) for the two bottom corners
+ *
+ * Round the particle ring's corners to match the window's: @top for the top
+ * corners (KDE rounds only these), @bottom for the bottom corners (GNOME rounds
+ * all four). 0 keeps square corners. apply_config() also sets this from the
+ * global CornerTop/CornerBottom keys, so most callers need not call it directly.
+ */
+void
+poxicle_engine_set_corner_radius(PoxicleEngine *self, int top, int bottom)
+{
+  g_return_if_fail(POXICLE_IS_ENGINE(self));
+  pox_engine_set_corner_radius(self->engine, top, bottom);
+}
+
+/**
  * poxicle_engine_set_preset:
  * @self: a #PoxicleEngine
  * @name: a built-in preset name (see poxicle_preset_name()), or "none"
@@ -287,6 +305,13 @@ poxicle_engine_apply_config(PoxicleEngine *self, const char *wm_class)
     pox_engine_set_palette(self->engine, 17);
     return TRUE;
   }
+
+  /* Global window-corner rounding (px), DE-neutral, written by poxicle-config.
+   * Missing keys read back as 0 (square), matching the historical look. Applies
+   * to whichever rule resolves below, so set it before they do. */
+  pox_engine_set_corner_radius(self->engine,
+      g_key_file_get_integer(kf, POX_CFG_GROUP, "CornerTop", NULL),
+      g_key_file_get_integer(kf, POX_CFG_GROUP, "CornerBottom", NULL));
 
   /* Per-app rule: first whose appId is a case-insensitive substring of wm_class. */
   g_autofree char *rules = g_key_file_get_string(kf, POX_CFG_GROUP, "Rules", NULL);

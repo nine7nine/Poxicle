@@ -66,6 +66,24 @@ on_grace (GtkSpinButton *sp, gpointer data)
   pox_io_reconfigure ();
 }
 
+/* Corner rounding — also EFFECT settings (poxicle group): the ring follows the
+ * window's rounded corners. Save + reload, same as grace. */
+static void
+on_corner_top (GtkSpinButton *sp, gpointer data)
+{
+  (void) data;
+  pox_io_save_corner_top ((int) gtk_spin_button_get_value (sp));
+  pox_io_reconfigure ();
+}
+
+static void
+on_corner_bottom (GtkSpinButton *sp, gpointer data)
+{
+  (void) data;
+  pox_io_save_corner_bottom ((int) gtk_spin_button_get_value (sp));
+  pox_io_reconfigure ();
+}
+
 static GtkWidget *
 color_btn (const char *hex, GCallback cb, gpointer data)
 {
@@ -123,12 +141,31 @@ pox_prefs_page_new (void)
   p->accent = color_btn (p->ap.accent, G_CALLBACK (on_accent), p);
   add_row (GTK_GRID (grid), 3, "Accent Color", p->accent);
 
+  GtkWidget *ctop = gtk_spin_button_new_with_range (0, 200, 2);
+  gtk_spin_button_set_value (GTK_SPIN_BUTTON (ctop), pox_io_load_corner_top ());
+  gtk_widget_set_halign (ctop, GTK_ALIGN_START);
+  gtk_widget_set_tooltip_text (ctop,
+    "Round the particle ring's TOP corners to follow the window's rounded "
+    "corners (KDE rounds the top corners). 0 = square. The ring always stays "
+    "bounded inside the window.");
+  g_signal_connect (ctop, "value-changed", G_CALLBACK (on_corner_top), p);
+  add_row (GTK_GRID (grid), 4, "Top corner radius (px)", ctop);
+
+  GtkWidget *cbot = gtk_spin_button_new_with_range (0, 200, 2);
+  gtk_spin_button_set_value (GTK_SPIN_BUTTON (cbot), pox_io_load_corner_bottom ());
+  gtk_widget_set_halign (cbot, GTK_ALIGN_START);
+  gtk_widget_set_tooltip_text (cbot,
+    "Round the particle ring's BOTTOM corners (GNOME rounds all four). 0 = "
+    "square. The ring always stays bounded inside the window.");
+  g_signal_connect (cbot, "value-changed", G_CALLBACK (on_corner_bottom), p);
+  add_row (GTK_GRID (grid), 5, "Bottom corner radius (px)", cbot);
+
   GtkWidget *bhdr = gtk_label_new ("Behavior");
   gtk_widget_add_css_class (bhdr, "title-4");
   gtk_widget_set_halign (bhdr, GTK_ALIGN_START);
   gtk_widget_set_margin_top (bhdr, 14);
   gtk_widget_set_margin_bottom (bhdr, 4);
-  gtk_grid_attach (GTK_GRID (grid), bhdr, 0, 4, 2, 1);
+  gtk_grid_attach (GTK_GRID (grid), bhdr, 0, 6, 2, 1);
 
   GtkWidget *grace = gtk_spin_button_new_with_range (0, 2000, 25);
   gtk_spin_button_set_value (GTK_SPIN_BUTTON (grace), pox_io_load_grace ());
@@ -138,7 +175,7 @@ pox_prefs_page_new (void)
     "un-minimizing, so the ring doesn't snap in over a still-animating window "
     "(Magic Lamp / Burn My Windows). Scaled by your animation speed.");
   g_signal_connect (grace, "value-changed", G_CALLBACK (on_grace), p);
-  add_row (GTK_GRID (grid), 5, "Un-minimize grace (ms)", grace);
+  add_row (GTK_GRID (grid), 7, "Un-minimize grace (ms)", grace);
 
   g_object_set_data_full (G_OBJECT (grid), "pox-prefs-page", p, g_free);
   return grid;

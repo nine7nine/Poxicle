@@ -56,10 +56,23 @@ public:
     // no Active rule is set or its preset is "none".
     PoxResolved resolveActive() const;
 
-    // How long (logical ms) to hold a streamed window's particles back after it
-    // starts un-minimizing, so the ring doesn't snap in over a still-animating
-    // window. Scaled by animationTimeFactor() at use. Default 350.
+    // A floor (logical ms) on how long to hold a window's particles back after it
+    // starts un-minimizing / un-hiding, so the ring doesn't snap in over a
+    // still-animating window. Scaled by animationTimeFactor() at use. Default 350.
     int unminimizeGraceMs() const { return m_unminimizeGrace; }
+
+    // The configured duration (logical ms) of the active *minimize* animation, read
+    // straight from kwinrc — e.g. Magic Lamp's AnimationDuration. A non-affine warp
+    // (Magic Lamp) exposes no transform we can track, so the grace must cover the
+    // animation's whole length; this is where that length comes from. 0 when no
+    // such effect is enabled (then unminimizeGraceMs() is the only floor).
+    int minimizeAnimMs() const { return m_minimizeAnim; }
+
+    // Window corner rounding (px): cornerTop() rounds the two top corners (match
+    // KDE), cornerBottom() the bottom two (match GNOME). 0 => square. Global,
+    // written by poxicle-config; passed to every per-window engine after surface.
+    int cornerTop() const { return m_cornerTop; }
+    int cornerBottom() const { return m_cornerBottom; }
 
 private:
     struct Rule {
@@ -86,4 +99,7 @@ private:
     Rule                        m_active;           // focus-following "active window" target
     bool                        m_activeSet = false;
     int                         m_unminimizeGrace = 350;   // ms; see unminimizeGraceMs()
+    int                         m_minimizeAnim = 0;        // ms; see minimizeAnimMs()
+    int                         m_cornerTop = 0;           // px; see cornerTop()
+    int                         m_cornerBottom = 0;        // px; see cornerBottom()
 };
