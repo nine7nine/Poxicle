@@ -155,6 +155,14 @@ void pox_engine_set_corner_radius (PoxEngine *e, int top, int bottom);
  * decides which edges face the interior (panel geometry vs. screen geometry). */
 void pox_engine_set_edge_mask (PoxEngine *e, int top, int right, int bottom, int left);
 
+/* Give this engine its own random phase + RNG stream from `seed`. Engines with
+ * distinct seeds run their loops and auto-bursts on independent clocks, so two
+ * objects created in the same frame (e.g. the panel and the active-window ring)
+ * don't animate in lockstep. Call once before set_kind(). The seed is mixed
+ * internally, so a simple per-object counter is fine. Not calling this leaves
+ * the engine on the legacy fixed seed / zero phase (unchanged behaviour). */
+void pox_engine_set_seed (PoxEngine *e, unsigned seed);
+
 /* Tunables for the ambient/global stream. Copied; caller keeps ownership. */
 void pox_engine_set_tunables (PoxEngine *e, const PoxTunables *t);
 

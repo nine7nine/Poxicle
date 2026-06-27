@@ -137,6 +137,7 @@ private:
     PoxConfig                 m_config;
     std::chrono::milliseconds m_lastPresent{0};
     bool                      m_active = false;
+    unsigned                  m_seedSeq = 0;   // per-engine seed source: every engine de-syncs
 
     // Focus-following "active window" overlay: a single engine drawn on whichever
     // window currently has focus, ON TOP of that window's own per-app particles

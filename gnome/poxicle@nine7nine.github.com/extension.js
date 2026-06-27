@@ -130,7 +130,11 @@ export default class PoxicleExtension extends Extension {
         // --- ambient self-sim (focused window) ---
         this._win = null;
         this._winSignals = [];
+        // Give every locally-simulated engine its own phase/RNG so independent
+        // objects don't animate in lockstep (parity with the KWin effect).
+        this._seedSeq = 0;
         this._engine = new Pox.Engine();
+        this._engine.set_seed(++this._seedSeq);
         this._area = new PoxicleParticleActor();
 
         this._display = global.display;
@@ -353,10 +357,22 @@ export default class PoxicleExtension extends Extension {
     // ---- frame loop ----
 
     _tick() {
-        // Ambient self-sim for the focused (non-streaming) window.
+        // Ambient self-sim for the focused (non-streaming) window. A fullscreen
+        // window gets no ring (it would draw over edge-to-edge content) — gated
+        // per-tick so it tracks the state live, mirroring the KWin effect's
+        // visible() check. The toggle needs no signal: this runs every frame.
         if (this._win && this._engine && this._area?.get_parent()) {
-            const bytes = this._engine.tick_vertices(TICK_MS / 1000);
-            this._area.setVertices(bytes, nVertsOf(bytes));
+            if (this._win.is_fullscreen()) {
+                if (this._area.visible)
+                    this._area.hide();
+            } else {
+                if (!this._area.visible) {
+                    this._area.show();
+                    this._place();
+                }
+                const bytes = this._engine.tick_vertices(TICK_MS / 1000);
+                this._area.setVertices(bytes, nVertsOf(bytes));
+            }
         }
 
         // Producer streams: draw the latest complete frame. null => no new frame
@@ -382,7 +398,7 @@ export default class PoxicleExtension extends Extension {
             }
             s.wasMinimized = minimizedNow;
 
-            if (minimizedNow || nowUs < s.suppressUntil) {
+            if (minimizedNow || s.win.is_fullscreen() || nowUs < s.suppressUntil) {
                 s.actor.hide();
                 continue;
             }

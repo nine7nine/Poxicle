@@ -96,6 +96,23 @@ poxicle_engine_set_corner_radius(PoxicleEngine *self, int top, int bottom)
 }
 
 /**
+ * poxicle_engine_set_seed:
+ * @self: a #PoxicleEngine
+ * @seed: any integer; mixed internally, so a per-object counter is fine
+ *
+ * Give this engine its own random phase + RNG stream so independent objects
+ * (the active-window ring, a panel, a per-app window) animate on their own
+ * clock instead of in lockstep. Call once before the look is applied
+ * (set_preset / apply_config). Not calling it keeps the legacy fixed seed.
+ */
+void
+poxicle_engine_set_seed(PoxicleEngine *self, guint seed)
+{
+  g_return_if_fail(POXICLE_IS_ENGINE(self));
+  pox_engine_set_seed(self->engine, seed);
+}
+
+/**
  * poxicle_engine_set_preset:
  * @self: a #PoxicleEngine
  * @name: a built-in preset name (see poxicle_preset_name()), or "none"

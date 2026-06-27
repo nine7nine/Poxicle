@@ -196,8 +196,13 @@ bool PoxicleEffect::eligible(KWin::EffectWindow *w) const
 
 bool PoxicleEffect::visible(KWin::EffectWindow *w) const
 {
+    // A fullscreen window (video, game, presentation) gets no ring — the particles
+    // would draw over its edge-to-edge content. Checked here, the single per-frame
+    // gate every draw/tick/repaint path runs through, so it covers per-app, the
+    // focus overlay and external streams alike, and tracks the state live (the ring
+    // clears the moment a window enters fullscreen and returns when it leaves).
     return w && w->isOnCurrentDesktop() && !w->isMinimized()
-        && !w->isHiddenByShowDesktop();
+        && !w->isHiddenByShowDesktop() && !w->isFullScreen();
 }
 
 // A window started restoring from minimized — KWin flips isMinimized() to false at
@@ -309,6 +314,7 @@ void PoxicleEffect::maybeAttach(KWin::EffectWindow *w)
 
     WinFx fx;
     fx.engine = pox_engine_new();
+    pox_engine_set_seed(fx.engine, ++m_seedSeq);   // own clock: don't lockstep with other rings
     fx.isPanel = dock;
     fx.geom = w->frameGeometry();
     pox_engine_set_surface(fx.engine, int(fx.geom.width()), int(fx.geom.height()), 1);
@@ -513,6 +519,7 @@ void PoxicleEffect::rebuildActiveEngine()
         return;   // no active-window poxicle configured
 
     m_activeEngine = pox_engine_new();
+    pox_engine_set_seed(m_activeEngine, ++m_seedSeq);   // overlay runs on its own clock too
     m_activeColor = m_activeResolved.color;
     if (m_activeWindow)
         pointActiveAt(m_activeWindow);

@@ -63,6 +63,7 @@ struct PoxEngine {
 
   double      now_s;
   uint32_t    rng;
+  double      seed_phase;      /* per-engine phase in [0,1) so independent engines de-sync (0 = legacy) */
 };
 
 /* ---- small PRNG (no glib) ---- */
@@ -580,6 +581,21 @@ void pox_engine_set_edge_mask(PoxEngine *e, int top, int right, int bottom, int 
                | (left   ? 0x8 : 0);
 }
 
+void pox_engine_set_seed(PoxEngine *e, unsigned seed)
+{
+  if (!e) return;
+  /* Mix so structured seeds (a per-attach counter, a window id, a pointer)
+   * disperse well, then take one draw as this engine's phase. Distinct seeds
+   * give each engine its own RNG stream (ambient/fireworks timing + colours)
+   * AND its own loop phase (applied in set_kind / set_ambient), so independent
+   * objects — panel vs. active window vs. a per-app window — animate on their
+   * own clock instead of marching in lockstep. */
+  uint32_t s = seed * 2654435761u + 0x9e3779b9u;
+  s ^= s >> 15;
+  e->rng = s ? s : 0x1234567u;
+  e->seed_phase = rnd01(e);
+}
+
 void pox_engine_set_tunables(PoxEngine *e, const PoxTunables *t) { e->tune = *t; }
 
 void pox_engine_set_ambient(PoxEngine *e, int enabled)
@@ -587,7 +603,10 @@ void pox_engine_set_ambient(PoxEngine *e, int enabled)
   if (e->ambient == !!enabled) return;
   e->ambient = !!enabled;
   if (e->ambient && e->ambient_due_s == 0.0)
-    e->ambient_due_s = e->now_s + 0.05;
+    /* Stagger the first auto-burst by this engine's phase so independent
+     * ambient/fireworks engines don't all fire on the same frame (the per-engine
+     * RNG stream then keeps them drifting). seed_phase is 0 by default. */
+    e->ambient_due_s = e->now_s + 0.05 + e->seed_phase * 0.6;
 }
 
 void pox_engine_set_palette_colors(PoxEngine *e, const PoxColor *cols, int n)
@@ -671,7 +690,10 @@ void pox_engine_set_kind(PoxEngine *e, PoxKind kind, int reverse, PoxColor color
                           kind == POX_KIND_COUNTERSPIN || kind == POX_KIND_SNAKE ||
                           kind == POX_KIND_BREATHE || kind == POX_KIND_STROBE    ||
                           kind == POX_KIND_FIREFLIES);
-    e->proc_start_s    = e->now_s;
+    /* Back-date the loop start by this engine's phase so independent engines
+     * begin mid-cycle at different points rather than in unison. seed_phase is
+     * 0 unless pox_engine_set_seed() was called, so the default is unchanged. */
+    e->proc_start_s    = e->now_s - e->seed_phase * e->proc_duration_s;
     e->proc_progress   = 0.0;
   } else {
     e->proc_progress   = -1.0;
