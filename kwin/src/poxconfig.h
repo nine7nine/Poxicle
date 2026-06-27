@@ -56,6 +56,12 @@ public:
     // no Active rule is set or its preset is "none".
     PoxResolved resolveActive() const;
 
+    // Resolve the desktop-panel target (the dock). Same packed format as Active,
+    // stored under "Panel". enabled == false when unset or preset "none" — that
+    // is also the signal not to decorate docks at all. The effect derives which
+    // edges to draw on from the panel's geometry vs. its screen, not from here.
+    PoxResolved resolvePanel() const;
+
     // A floor (logical ms) on how long to hold a window's particles back after it
     // starts un-minimizing / un-hiding, so the ring doesn't snap in over a
     // still-animating window. Scaled by animationTimeFactor() at use. Default 350.
@@ -98,6 +104,8 @@ private:
     QList<Rule>                 m_rules;
     Rule                        m_active;           // focus-following "active window" target
     bool                        m_activeSet = false;
+    Rule                        m_panel;            // desktop-panel (dock) target
+    bool                        m_panelSet = false;
     int                         m_unminimizeGrace = 350;   // ms; see unminimizeGraceMs()
     int                         m_minimizeAnim = 0;        // ms; see minimizeAnimMs()
     int                         m_cornerTop = 0;           // px; see cornerTop()

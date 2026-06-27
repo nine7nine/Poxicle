@@ -19,11 +19,16 @@ static const char *const g_rmode[]  = { "—", "U", "R", "S", "G", "A" };       
 
 #define N_COLS 16
 
+/* A row is one of: a per-app rule, the focus-following Active target, or the
+ * desktop-Panel target. The latter two have no app id (fixed label instead). */
+typedef enum { ROW_APP, ROW_ACTIVE, ROW_PANEL } RowKind;
+
 typedef struct {
   GtkWidget *app, *preset, *rev, *color, *shape, *gap,
             *spd, *thk, *tail, *atk, *rel, *rls, *tatk, *trel, *trls, *palette;
   char      *color_hex;     /* "#rrggbb" or NULL = inherit */
   int        is_active;     /* the focus-following "Active window" row (no app id) */
+  int        is_panel;      /* the desktop "Panel" row (no app id) */
 } RuleRow;
 
 typedef struct {
@@ -101,23 +106,28 @@ static void attach(AppsPage *ap, GtkWidget *box, int col, GtkWidget *w)
   gtk_box_append(GTK_BOX(box), w);
 }
 
-static void add_row(AppsPage *ap, const PoxRule *init, gboolean is_active)
+static void add_row(AppsPage *ap, const PoxRule *init, RowKind kind)
 {
   RuleRow *r = g_new0(RuleRow, 1);
-  r->is_active = is_active;
+  r->is_active = (kind == ROW_ACTIVE);
+  r->is_panel  = (kind == ROW_PANEL);
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
   gtk_widget_add_css_class(box, "preset-row");   /* compact spin styling */
 
-  if (is_active) {
-    /* The active-window target has no app id: a fixed label sits in the App
-     * column. It is saved to the "Active" key, not the Rules list. */
-    GtkWidget *lbl = gtk_label_new("★ Active window");
+  if (kind != ROW_APP) {
+    /* The active-window and panel targets have no app id: a fixed label sits in
+     * the App column. They save to the "Active" / "Panel" keys, not Rules. */
+    GtkWidget *lbl = gtk_label_new(kind == ROW_PANEL ? "▭ Panel" : "★ Active window");
     gtk_widget_add_css_class(lbl, "preset-name");
     gtk_widget_set_halign(lbl, GTK_ALIGN_START);
     gtk_widget_set_size_request(lbl, 150, -1);
-    gtk_widget_set_tooltip_text(lbl,
-      "Drawn on whichever window currently has focus, on top of that window's "
-      "own per-app particles. Set preset to “none” to disable.");
+    gtk_widget_set_tooltip_text(lbl, kind == ROW_PANEL
+      ? "Drawn on the desktop panel, only on the edge(s) facing the screen "
+        "interior — auto-detected from the panel's position (a top panel lights "
+        "its bottom edge; a floating panel, all four). The panel keeps sharp "
+        "corners. Set preset to “none” to disable."
+      : "Drawn on whichever window currently has focus, on top of that window's "
+        "own per-app particles. Set preset to “none” to disable.");
     attach(ap, box, 0, lbl);
   } else {
     r->app = gtk_entry_new();
@@ -231,7 +241,7 @@ static void seed_row(AppsPage *ap, const char *app_id)
   seed.preset = (char *) apps_presets[pox_preset_value(ap->default_preset)];
   seed.shape = seed.gap = seed.release_mode = seed.thk_release_mode = -1;
   seed.app_id = (char *) app_id;
-  add_row(ap, &seed, FALSE);
+  add_row(ap, &seed, ROW_APP);
 }
 
 static void on_add(GtkButton *btn, gpointer data)
@@ -268,9 +278,9 @@ static void on_remove(GtkButton *btn, gpointer data)
   if (!sel)
     return;
   RuleRow *r = g_object_get_data(G_OBJECT(sel), "rulerow");
-  if (r && r->is_active) {
+  if (r && (r->is_active || r->is_panel)) {
     if (ap->cb)
-      ap->cb(ap->cb_data, "The active-window entry can't be removed");
+      ap->cb(ap->cb_data, "The active-window and panel entries can't be removed");
     return;
   }
   gtk_list_box_remove(GTK_LIST_BOX(ap->list), GTK_WIDGET(sel));
@@ -282,6 +292,7 @@ static void on_apply(GtkButton *btn, gpointer data)
   AppsPage *ap = data;
   GPtrArray *rules = g_ptr_array_new_with_free_func((GDestroyNotify) pox_rule_free);
   PoxRule *active = NULL;
+  PoxRule *panel = NULL;
 
   for (GtkWidget *child = gtk_widget_get_first_child(ap->list);
        child; child = gtk_widget_get_next_sibling(child)) {
@@ -290,6 +301,11 @@ static void on_apply(GtkButton *btn, gpointer data)
     if (r->is_active) {
       pox_rule_free(active);            /* keep the single active row */
       active = active_row_to_rule(r);
+      continue;
+    }
+    if (r->is_panel) {
+      pox_rule_free(panel);             /* keep the single panel row */
+      panel = active_row_to_rule(r);    /* same appId-less packing as Active */
       continue;
     }
     PoxRule *pr = row_to_rule(r);
@@ -301,6 +317,10 @@ static void on_apply(GtkButton *btn, gpointer data)
   if (active) {
     pox_io_save_active(active);
     pox_rule_free(active);
+  }
+  if (panel) {
+    pox_io_save_panel(panel);
+    pox_rule_free(panel);
   }
   pox_io_save_default_preset(apps_presets[pox_preset_value(ap->default_preset)]);
   pox_io_reconfigure();
@@ -384,14 +404,19 @@ pox_apps_page_new(PoxSavedCb cb, gpointer cb_data)
   gtk_box_append(GTK_BOX(box), scroller);
   gtk_box_append(GTK_BOX(box), actionbar);
 
-  /* The focus-following "Active window" target sits at the top, always present. */
+  /* The focus-following "Active window" and desktop "Panel" targets sit at the
+   * top, always present. */
   PoxRule *active = pox_io_load_active();
-  add_row(ap, active, TRUE);
+  add_row(ap, active, ROW_ACTIVE);
   pox_rule_free(active);
+
+  PoxRule *panel = pox_io_load_panel();
+  add_row(ap, panel, ROW_PANEL);
+  pox_rule_free(panel);
 
   GPtrArray *rules = pox_io_load_rules();
   for (guint i = 0; i < rules->len; i++)
-    add_row(ap, g_ptr_array_index(rules, i), FALSE);
+    add_row(ap, g_ptr_array_index(rules, i), ROW_APP);
   g_ptr_array_unref(rules);
 
   g_object_set_data_full(G_OBJECT(box), "pox-apps-page", ap, g_free);

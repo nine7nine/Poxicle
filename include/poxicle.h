@@ -147,6 +147,14 @@ void pox_engine_set_surface  (PoxEngine *e, int width, int height, int scale);
  * every preset, the ambient/fireworks bursts, the overscroll beam and the ring. */
 void pox_engine_set_corner_radius (PoxEngine *e, int top, int bottom);
 
+/* Restrict the ring to a subset of edges: each arg is 1 = draw on that edge,
+ * 0 = skip it. The default (all 1) is the full perimeter. Intended for surfaces
+ * docked to a screen border — a desktop panel — where the edges flush against
+ * the border should carry no particles and only the interior-facing edge(s)
+ * (and any sides, for a non-spanning or floating panel) get the ring. The host
+ * decides which edges face the interior (panel geometry vs. screen geometry). */
+void pox_engine_set_edge_mask (PoxEngine *e, int top, int right, int bottom, int left);
+
 /* Tunables for the ambient/global stream. Copied; caller keeps ownership. */
 void pox_engine_set_tunables (PoxEngine *e, const PoxTunables *t);
 

@@ -358,6 +358,60 @@ void pox_io_save_active(const PoxRule *r)
   g_free(packed);
 }
 
+/* ---- desktop-panel target ("Panel": same packed format as Active) ---- */
+
+PoxRule *pox_io_load_panel(void)
+{
+  PoxRule *r = g_new0(PoxRule, 1);
+  r->preset = g_strdup("none");           /* unset => disabled */
+  r->shape = r->gap = r->release_mode = r->thk_release_mode = -1;
+
+  char *raw = read_key("Panel");
+  if (*raw) {
+    char **f = g_strsplit(raw, "|", -1);
+    guint nf = g_strv_length(f);
+    /* preset|rev|color|shape|gap|speed|thk|tail|atk|rel|relMode|tAtk|tRel|tRelMode|palette */
+    if (nf >= 1 && f[0][0]) {
+      g_free(r->preset);
+      r->preset = g_strdup(g_strstrip(f[0]));
+    }
+    if (nf >= 14) {
+      r->reverse = as_int(f[1], 0);
+      const char *col = g_strstrip(f[2]);
+      r->color   = (*col) ? g_strdup(col) : NULL;
+      r->shape          = as_int(f[3],  -1);
+      r->gap            = as_int(f[4],  -1);
+      r->speed          = as_int(f[5],   0);
+      r->thickness      = as_int(f[6],   0);
+      r->tail           = as_int(f[7],   0);
+      r->attack         = as_int(f[8],   0);
+      r->release        = as_int(f[9],   0);
+      r->release_mode   = as_int(f[10], -1);
+      r->thk_attack     = as_int(f[11],  0);
+      r->thk_release    = as_int(f[12],  0);
+      r->thk_release_mode = as_int(f[13], -1);
+      r->palette        = (nf > 14) ? as_int(f[14], 0) : 0;   /* absent => Muted */
+    }
+    g_strfreev(f);
+  }
+  g_free(raw);
+  return r;
+}
+
+void pox_io_save_panel(const PoxRule *r)
+{
+  /* Same field order as a Rules entry but with NO leading app id. */
+  char *packed = g_strdup_printf("%s|%d|%s|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d",
+                                 r->preset ? r->preset : "none",
+                                 r->reverse, r->color ? r->color : "",
+                                 r->shape, r->gap, r->speed, r->thickness, r->tail,
+                                 r->attack, r->release, r->release_mode,
+                                 r->thk_attack, r->thk_release, r->thk_release_mode,
+                                 r->palette);
+  write_key("Panel", packed);
+  g_free(packed);
+}
+
 char *pox_io_load_default_preset(void)
 {
   char *v = read_key("DefaultPreset");

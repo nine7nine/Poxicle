@@ -173,6 +173,17 @@ void PoxConfig::load()
         }
     }
 
+    // The desktop-panel target: one rule, no leading appId (same format as Active).
+    m_panelSet = false;
+    const QString panelLine = g.readEntry("Panel", QString());
+    if (!panelLine.isEmpty()) {
+        const QStringList f = panelLine.split(QLatin1Char('|'));
+        if (!f.value(0).trimmed().isEmpty()) {
+            m_panel = parseRule(f, 0);
+            m_panelSet = true;
+        }
+    }
+
     // Un-minimize grace (ms) — global behaviour, written by poxicle-config.
     m_unminimizeGrace = qBound(0, g.readEntry("UnminimizeGrace", 350), 2000);
 
@@ -284,4 +295,15 @@ PoxResolved PoxConfig::resolveActive() const
         return out;
     }
     return resolveRule(m_active);
+}
+
+PoxResolved PoxConfig::resolvePanel() const
+{
+    if (!m_panelSet) {
+        PoxResolved out;
+        out.enabled = false;
+        out.color = { -1.0f, -1.0f, -1.0f, -1.0f };
+        return out;
+    }
+    return resolveRule(m_panel);
 }

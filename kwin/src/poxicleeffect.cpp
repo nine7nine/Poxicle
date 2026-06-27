@@ -5,6 +5,7 @@
 #include <effect/effectwindow.h>
 #include <core/renderviewport.h>
 #include <core/rect.h>
+#include <core/output.h>          // KWin::LogicalOutput::geometry() (panel edge mask)
 #include <core/renderbackend.h>   // KWin::OutputFrame (present-time source)
 #include <scene/scene.h>   // KWin::RenderView
 
@@ -266,22 +267,57 @@ static void applyPalette(PoxEngine *e, const PoxResolved &r)
     pox_engine_set_palette(e, r.palette);
 }
 
+void PoxicleEffect::applyPanelEdgeMask(KWin::EffectWindow *w, PoxEngine *e) const
+{
+    // An edge gets the ring only if it's NOT flush against the screen border —
+    // i.e. there's a gap between it and the matching screen edge. So a top panel
+    // spanning the width lights only its bottom edge; a centred (non-spanning) top
+    // panel adds its left/right edges; a floating panel (gap all round) gets all
+    // four. No screen => fall back to the full ring.
+    int top = 1, right = 1, bottom = 1, left = 1;
+    if (KWin::LogicalOutput *o = w->screen()) {
+        const QRectF pg = w->frameGeometry();
+        const KWin::Rect sg = o->geometry();
+        const qreal eps = 1.0;   // tolerate sub-pixel flushness
+        const int sgL = sg.x(),               sgT = sg.y();
+        const int sgR = sg.x() + sg.width(),  sgB = sg.y() + sg.height();
+        top    = (pg.top()    > sgT + eps) ? 1 : 0;
+        left   = (pg.left()   > sgL + eps) ? 1 : 0;
+        right  = (pg.right()  < sgR - eps) ? 1 : 0;
+        bottom = (pg.bottom() < sgB - eps) ? 1 : 0;
+    }
+    pox_engine_set_edge_mask(e, top, right, bottom, left);
+}
+
 void PoxicleEffect::maybeAttach(KWin::EffectWindow *w)
 {
-    if (!eligible(w) || m_windows.count(w))
+    if (!w || m_windows.count(w))
+        return;
+    // Normal windows are gated by eligible(); a dock (the desktop panel) is admitted
+    // only via the Panel target. eligible() still rejects docks on purpose, so a
+    // panel never becomes the active-overlay or a per-app window.
+    const bool dock = w->isDock();
+    if (!dock && !eligible(w))
         return;
     if (streamClaims(w))
         return;   // external-source window: the producer drives it, our rules don't
 
-    const PoxResolved r = m_config.resolve(w->windowClass());
+    const PoxResolved r = dock ? m_config.resolvePanel()
+                               : m_config.resolve(w->windowClass());
     if (!r.enabled)
-        return;   // preset "none" => this window draws nothing
+        return;   // preset "none" / no Panel target => this window draws nothing
 
     WinFx fx;
     fx.engine = pox_engine_new();
+    fx.isPanel = dock;
     fx.geom = w->frameGeometry();
     pox_engine_set_surface(fx.engine, int(fx.geom.width()), int(fx.geom.height()), 1);
-    pox_engine_set_corner_radius(fx.engine, m_config.cornerTop(), m_config.cornerBottom());
+    if (dock)
+        // Panels keep SHARP corners (independent of the window corner-rounding
+        // controls) and only ring their interior-facing edges.
+        applyPanelEdgeMask(w, fx.engine);
+    else
+        pox_engine_set_corner_radius(fx.engine, m_config.cornerTop(), m_config.cornerBottom());
     pox_engine_set_tunables(fx.engine, &r.tunables);
     fx.color = r.color;
     // Drive the preset's actual motion (corners/rotate/ping-pong/pulse-out loop;
@@ -565,6 +601,10 @@ void PoxicleEffect::prePaintScreen(KWin::ScreenPrePaintData &data)
             const QRectF g = w->frameGeometry();
             if (g.size() != fx.geom.size())
                 pox_engine_set_surface(fx.engine, int(g.width()), int(g.height()), 1);
+            // A panel moved or resized (e.g. edge changed, width mode toggled) can
+            // flip which edges face the screen interior — recompute its mask.
+            if (fx.isPanel && g != fx.geom)
+                applyPanelEdgeMask(w, fx.engine);
             fx.geom = g;
 
             const size_t n = pox_engine_tick(fx.engine, dt,

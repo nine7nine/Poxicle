@@ -77,6 +77,7 @@ private:
         PoxEngine *engine = nullptr;
         QRectF     geom;                       // last frameGeometry (logical coords)
         PoxColor   color { -1, -1, -1, -1 };   // per-app particle color; a<0 = none
+        bool       isPanel = false;            // a dock: ring only on interior-facing edges
         std::vector<PoxInstance> instances;    // this frame's particles, global logical coords
     };
 
@@ -108,6 +109,11 @@ private:
 
     bool eligible(KWin::EffectWindow *w) const;   // a window type we ever decorate
     bool visible(KWin::EffectWindow *w) const;    // on current desktop, not minimized
+    // For a dock: set the engine's edge mask so the ring only draws on edges that
+    // face the screen interior (a gap from the screen border), not the edges flush
+    // against it. Floating panel => all four; top panel spanning the width => only
+    // the bottom; etc. Derived from the panel's geometry vs. its screen's.
+    void applyPanelEdgeMask(KWin::EffectWindow *w, PoxEngine *e) const;
     void maybeAttach(KWin::EffectWindow *w);
     void detach(KWin::EffectWindow *w);
     void rebuildActiveEngine();                   // (re)create/free the focus overlay engine

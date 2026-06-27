@@ -84,6 +84,13 @@ void       pox_io_save_rules    (GPtrArray *rules);
 PoxRule   *pox_io_load_active   (void);
 void       pox_io_save_active   (const PoxRule *r);
 
+/* The desktop-panel (dock) target — same packed format as Active, stored under
+ * "Panel". preset "none" => disabled (and the effect won't decorate docks). The
+ * effect derives which panel edges to ring from geometry; the panel keeps sharp
+ * corners regardless of the window corner-rounding controls. */
+PoxRule   *pox_io_load_panel    (void);
+void       pox_io_save_panel    (const PoxRule *r);
+
 char  *pox_io_load_default_preset (void);                /* newly-allocated */
 void   pox_io_save_default_preset (const char *name);
 

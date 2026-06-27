@@ -30,6 +30,7 @@ struct PoxEngine {
   int         width, height, scale;
   double      perim;
   int         corner_top, corner_bottom;  /* corner rounding radii, px (0 = square) */
+  int         edge_mask;       /* which edges emit: bit0 top, 1 right, 2 bottom, 3 left (0xF = all) */
 
   PoxTunables tune;            /* global / ambient stream */
 
@@ -407,6 +408,17 @@ static void emit_segment(PoxEngine *e, PoxInstance *out, size_t *count, size_t c
     if (*count >= cap) break;
     if (s > 0) { d += delta; if (d >= perim) d -= perim; if (d < 0.0) d += perim; }
 
+    /* Edge mask: skip blocks whose perimeter position lands on a disabled edge
+     * (classified from the raw, pre-rounding position). 0xF (default) costs
+     * nothing here and keeps the full ring. Used for panels, where the edges
+     * flush against the screen border carry no particles. */
+    if (e->edge_mask != 0xF) {
+      double dd = fmod(d + perim, perim);
+      int ei = (dd < w) ? 0 : (dd < w + h) ? 1 : (dd < 2 * w + h) ? 2 : 3;
+      if (!(e->edge_mask & (1 << ei)))
+        continue;
+    }
+
     float t = (float) s * inv_blocks;
     double block_blk = blk;
     if (thk_release_factor > 0.0f) {
@@ -532,6 +544,7 @@ PoxEngine *pox_engine_new(void)
   PoxEngine *e = calloc(1, sizeof *e);
   if (!e) return NULL;
   e->scale = 1;
+  e->edge_mask = 0xF;          /* all four edges on (calloc would otherwise = draw nothing) */
   e->rng = 0x1234567u;
   e->burst_count = 4;
   e->burst_spread = 1.0;
@@ -557,6 +570,14 @@ void pox_engine_set_corner_radius(PoxEngine *e, int top, int bottom)
 {
   e->corner_top    = top > 0 ? top : 0;
   e->corner_bottom = bottom > 0 ? bottom : 0;
+}
+
+void pox_engine_set_edge_mask(PoxEngine *e, int top, int right, int bottom, int left)
+{
+  e->edge_mask = (top    ? 0x1 : 0)
+               | (right  ? 0x2 : 0)
+               | (bottom ? 0x4 : 0)
+               | (left   ? 0x8 : 0);
 }
 
 void pox_engine_set_tunables(PoxEngine *e, const PoxTunables *t) { e->tune = *t; }
