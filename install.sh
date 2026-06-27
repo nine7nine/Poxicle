@@ -16,12 +16,19 @@
 set -e
 cd "$(dirname "$0")"
 
+# Always build CLEAN. The KWin effect bakes the compositor's version into its
+# plugin factory IID (effect.h: EffectPluginFactory_iid =
+# "org.kde.kwin.EffectPluginFactory" + KWIN_PLUGIN_VERSION_STRING). When KWin
+# updates, pacman restores config-kwin.h with the *package build* mtime, which is
+# OLDER than the cached .o from the last build — so an incremental rebuild sees
+# the object as up to date, skips the recompile, and reinstalls a plugin whose
+# IID still names the OLD KWin. The updated compositor then silently refuses to
+# load it (it never even appears in Desktop Effects). Wiping the build dirs is
+# the only reliable cure, so do it unconditionally.
+rm -rf build-install kwin/build-install
+
 echo ">> [1/2] engine + GTK4 configurator  (Meson -> /usr)"
-if [ -d build-install ]; then
-  meson setup --reconfigure build-install --prefix=/usr -Dconfigurator=true -Ddemos=false
-else
-  meson setup build-install --prefix=/usr -Dconfigurator=true -Ddemos=false
-fi
+meson setup build-install --prefix=/usr -Dconfigurator=true -Ddemos=false
 meson compile -C build-install
 echo ">> installing poxicle-config to /usr/bin (sudo)..."
 sudo meson install -C build-install
