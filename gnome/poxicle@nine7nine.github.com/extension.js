@@ -30,6 +30,7 @@ import St from 'gi://St';
 import Pox from 'gi://Poxicle';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const TICK_MS = 16;   // ~60fps; a vsync-locked frame clock is a later refinement.
 const VERT_STRIDE = 12;   // poxicle_engine_tick_vertices: f32 x,y + u8 r,g,b,a
@@ -137,6 +138,14 @@ export default class PoxicleExtension extends Extension {
         this._engine.set_seed(++this._seedSeq);
         this._area = new PoxicleParticleActor();
 
+        // --- desktop panel ring (GNOME top bar) — parity with the KWin Panel target ---
+        // Its own engine on its own clock; interior-facing edges only; sharp corners.
+        this._panelEngine = new Pox.Engine();
+        this._panelEngine.set_seed(++this._seedSeq);
+        this._panelArea = new PoxicleParticleActor();
+        this._panelGeom = {x: -1, y: -1, w: -1, h: -1};
+        this._panelSignals = [];
+
         this._display = global.display;
         this._focusId = this._display.connect('notify::focus-window',
             () => this._retarget());
@@ -148,9 +157,16 @@ export default class PoxicleExtension extends Extension {
         this._cfgMonitor.connect('changed', () => {
             this._readGrace();
             this._retarget();
+            this._retargetPanel();
         });
 
+        // A monitor change moves/resizes the panel and its screen, flipping which
+        // edges face the interior — re-evaluate the panel ring then.
+        this._panelSignals.push([Main.layoutManager,
+            Main.layoutManager.connect('monitors-changed', () => this._retargetPanel())]);
+
         this._retarget();
+        this._retargetPanel();
 
         // --- bridge receiver (producer streams) ---
         this._streams = new Map();   // pid -> {pid, engine, actor, win, winSignals}
@@ -193,6 +209,15 @@ export default class PoxicleExtension extends Extension {
         this._area?.destroy();
         this._area = null;
         this._engine = null;
+
+        for (const [obj, id] of this._panelSignals ?? [])
+            obj.disconnect(id);
+        this._panelSignals = null;
+        this._untrackPanel();
+        this._panelArea?.destroy();
+        this._panelArea = null;
+        this._panelEngine = null;
+
         this._display = null;
     }
 
@@ -255,6 +280,82 @@ export default class PoxicleExtension extends Extension {
         this._area.set_position(r.x, r.y);
         this._area.set_size(r.width, r.height);
         this._engine.set_surface(r.width, r.height, 1);
+    }
+
+    // ---- desktop panel ring (GNOME top bar) ----
+    //
+    // The GNOME equivalent of the KWin effect's Panel target. The shell's top bar
+    // (Main.layoutManager.panelBox) is chrome, not a Meta.Window, so we ride it
+    // directly: a sibling overlay in uiGroup, sized to the panel, drawing the ring
+    // only on edges that face the screen interior (the engine's edge_mask, set from
+    // panel-vs-monitor geometry), with sharp corners. Geometry is polled per-tick
+    // (cheap) so it follows panel resize / monitor changes without extra signals.
+
+    _untrackPanel() {
+        const parent = this._panelArea?.get_parent();
+        if (parent)
+            parent.remove_child(this._panelArea);
+    }
+
+    _retargetPanel() {
+        if (!this._panelEngine || !this._panelArea)
+            return;
+        // Resolve the Panel target from the shared config. Disabled / "none" /
+        // no config => tear the ring down. apply_panel_config keeps sharp corners
+        // (it deliberately ignores the window corner-rounding keys) — parity with
+        // the KWin effect, which never rounds the panel.
+        if (!this._panelEngine.apply_panel_config()) {
+            this._untrackPanel();
+            return;
+        }
+        if (!this._panelArea.get_parent())
+            Main.layoutManager.uiGroup.add_child(this._panelArea);
+        this._panelGeom = {x: -1, y: -1, w: -1, h: -1};   // force a re-place next tick
+    }
+
+    // Light only the panel edges that face the screen interior — a gap between the
+    // panel edge and the matching monitor border. Top full-width bar => bottom edge
+    // only; a centred/floating panel adds its sides. Mirrors applyPanelEdgeMask().
+    _applyPanelEdgeMask(x, y, w, h) {
+        let top = 1, right = 1, bottom = 1, left = 1;
+        const m = Main.layoutManager.primaryMonitor;
+        if (m) {
+            const eps = 1;
+            top    = (y > m.y + eps) ? 1 : 0;
+            left   = (x > m.x + eps) ? 1 : 0;
+            right  = (x + w < m.x + m.width - eps) ? 1 : 0;
+            bottom = (y + h < m.y + m.height - eps) ? 1 : 0;
+        }
+        this._panelEngine.set_edge_mask(top, right, bottom, left);
+    }
+
+    _tickPanel() {
+        if (!this._panelEngine || !this._panelArea?.get_parent())
+            return;
+        const pb = Main.layoutManager.panelBox;
+        // The shell hides the panel under fullscreen windows; follow it (this is also
+        // how the panel ring honours "no ring on fullscreen" — the bar is gone).
+        if (!pb || !pb.visible) {
+            if (this._panelArea.visible)
+                this._panelArea.hide();
+            return;
+        }
+        const a = pb.get_allocation_box();
+        const x = a.x1, y = a.y1, w = a.x2 - a.x1, h = a.y2 - a.y1;
+        if (w <= 0 || h <= 0)
+            return;   // not allocated yet
+        if (x !== this._panelGeom.x || y !== this._panelGeom.y ||
+            w !== this._panelGeom.w || h !== this._panelGeom.h) {
+            this._panelGeom = {x, y, w, h};
+            this._panelArea.set_position(x, y);
+            this._panelArea.set_size(w, h);
+            this._panelEngine.set_surface(w, h, 1);
+            this._applyPanelEdgeMask(x, y, w, h);
+        }
+        if (!this._panelArea.visible)
+            this._panelArea.show();
+        const bytes = this._panelEngine.tick_vertices(TICK_MS / 1000);
+        this._panelArea.setVertices(bytes, nVertsOf(bytes));
     }
 
     // ---- bridge receiver: D-Bus methods (called by the wrapped object) ----
@@ -374,6 +475,9 @@ export default class PoxicleExtension extends Extension {
                 this._area.setVertices(bytes, nVertsOf(bytes));
             }
         }
+
+        // Desktop panel ring (independent engine; geometry polled here).
+        this._tickPanel();
 
         // Producer streams: draw the latest complete frame. null => no new frame
         // (keep the last); an empty blob => a frame with no particles (clears).

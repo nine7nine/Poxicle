@@ -20,9 +20,11 @@ PoxicleEngine *poxicle_engine_new            (void);
 void           poxicle_engine_set_surface    (PoxicleEngine *self, int width, int height, int scale);
 void           poxicle_engine_set_corner_radius (PoxicleEngine *self, int top, int bottom);
 void           poxicle_engine_set_seed       (PoxicleEngine *self, guint seed);
+void           poxicle_engine_set_edge_mask  (PoxicleEngine *self, int top, int right, int bottom, int left);
 void           poxicle_engine_set_preset     (PoxicleEngine *self, const char *name, int reverse);
 void           poxicle_engine_set_palette    (PoxicleEngine *self, int palette_id);
 gboolean       poxicle_engine_apply_config   (PoxicleEngine *self, const char *wm_class);
+gboolean       poxicle_engine_apply_panel_config (PoxicleEngine *self);
 GBytes        *poxicle_engine_tick           (PoxicleEngine *self, double dt);
 GBytes        *poxicle_engine_tick_vertices  (PoxicleEngine *self, double dt);
 

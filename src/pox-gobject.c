@@ -113,6 +113,27 @@ poxicle_engine_set_seed(PoxicleEngine *self, guint seed)
 }
 
 /**
+ * poxicle_engine_set_edge_mask:
+ * @self: a #PoxicleEngine
+ * @top: 1 to ring the top edge, 0 to skip it
+ * @right: 1 to ring the right edge, 0 to skip it
+ * @bottom: 1 to ring the bottom edge, 0 to skip it
+ * @left: 1 to ring the left edge, 0 to skip it
+ *
+ * Restrict the ring to a subset of edges (default is all four). Intended for a
+ * surface docked to a screen border — a desktop panel — where only the edges
+ * facing the screen interior should carry particles. The host decides which
+ * edges face the interior from the panel's geometry vs. its monitor's. Parity
+ * with the KWin effect's applyPanelEdgeMask().
+ */
+void
+poxicle_engine_set_edge_mask(PoxicleEngine *self, int top, int right, int bottom, int left)
+{
+  g_return_if_fail(POXICLE_IS_ENGINE(self));
+  pox_engine_set_edge_mask(self->engine, top, right, bottom, left);
+}
+
+/**
  * poxicle_engine_set_preset:
  * @self: a #PoxicleEngine
  * @name: a built-in preset name (see poxicle_preset_name()), or "none"
@@ -361,6 +382,41 @@ poxicle_engine_apply_config(PoxicleEngine *self, const char *wm_class)
     return applied;
   }
   return FALSE;
+}
+
+/**
+ * poxicle_engine_apply_panel_config:
+ * @self: a #PoxicleEngine
+ *
+ * Resolve and apply the desktop-panel ("Panel") target from poxicle-config's
+ * DE-neutral config — the GNOME-side equivalent of the KWin effect's
+ * PoxConfig::resolvePanel(). The Panel rule is packed exactly like "Active"
+ * (no appId; preset at field 0). Unlike apply_config() this deliberately does
+ * NOT read CornerTop/CornerBottom: the panel keeps SHARP corners. The host sets
+ * which edges face the screen interior via poxicle_engine_set_edge_mask().
+ *
+ * Returns: %TRUE if a Panel look was applied, %FALSE if none is configured / the
+ *   preset is "none" / there is no config yet.
+ */
+gboolean
+poxicle_engine_apply_panel_config(PoxicleEngine *self)
+{
+  g_return_val_if_fail(POXICLE_IS_ENGINE(self), FALSE);
+
+  g_autofree char *path =
+      g_build_filename(g_get_user_config_dir(), "poxicle", "poxicle.conf", NULL);
+  g_autoptr(GKeyFile) kf = g_key_file_new();
+  if (!g_key_file_load_from_file(kf, path, G_KEY_FILE_NONE, NULL))
+    return FALSE;
+
+  g_autofree char *panel = g_key_file_get_string(kf, POX_CFG_GROUP, "Panel", NULL);
+  if (!panel || !*panel)
+    return FALSE;
+
+  gchar **f = g_strsplit(panel, "|", -1);
+  gboolean applied = (f[0] && *g_strstrip(f[0])) && cfg_apply_rule(self, kf, f, 0);
+  g_strfreev(f);
+  return applied;
 }
 
 /**
