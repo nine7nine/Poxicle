@@ -12,7 +12,7 @@ The KWin effect (`kwin/`) is a standalone Plasma 6 compositor effect that draws 
 6. [Ring-only repaint and idle parking](#6-ring-only-repaint-and-idle-parking)
 7. [The un-minimize grace](#7-the-un-minimize-grace)
 8. [The poxbridge receiver](#8-the-poxbridge-receiver)
-9. [Configuration: the neutral file vs the KCM](#9-configuration-the-neutral-file-vs-the-kcm)
+9. [Configuration: the neutral config file](#9-configuration-the-neutral-config-file)
 10. [Design rules](#10-design-rules)
 
 ---
@@ -134,11 +134,11 @@ The effect is the canonical receiver of the [poxbridge protocol](poxbridge.gen.h
 
 The three `Q_SCRIPTABLE` methods are `Register(pid, shm)`, `Unregister(pid)`, and `Wake(pid)`. `Register` dups the fd, `fstat`s its real size, maps it read-only, validates the `PoxBridgeHeader`, replaces any prior stream for that pid, stores an `ExtStream` keyed by pid, and binds it. `readStreamFrame` is the [seqlock reader](poxbridge.gen.html#4-the-seqlock) (up to 4 retries); after `kStreamIdleGrace = 4` empty polls the stream clears so a quiet producer lets KWin sleep. A stream **takes precedence** over a window's per-app engine — binding drops any owns-sim state so the two never double-draw. A producer is matched to its window by PID. The bundled `poxbridge-test` executable is a standalone producer that stands in for Chiguiro to exercise this path in a nested KWin.
 
-## 9. Configuration: the neutral file vs the KCM
+## 9. Configuration: the neutral config file
 
 At runtime the effect reads the **DE-neutral config file** — `~/.config/poxicle/poxicle.conf`, group `[poxicle]` — via `poxconfig.cpp`, opened fresh each `reconfigure()` so a save is picked up rather than a cached copy. It resolves the `Preset-<name>` edits, `Rules`, `Active`, and `Panel` targets exactly as documented in [Configuration & Presets](configuration.gen.html); `resolve()` matches the first rule whose appId is a case-insensitive substring of the window class, with no global default. It additionally reads `kwinrc` for the configured Magic Lamp animation duration, since that non-affine warp must be covered by the un-minimize grace.
 
-There is one wrinkle worth knowing. The bundled **KCM** (`PoxicleKcm` → `kwin_poxicle_config.so`, the "Configure" button in System Settings) presents a per-app rules table, but its `load()`/`save()` still target the legacy `kwinrc [Effect-poxicle_kwin]` group — which the runtime reader no longer consults. The supported editor is therefore the standalone [GTK4 configurator](configurator.gen.html) (`poxicle-config`), which writes the neutral file the effect actually reads; the KCM remains as the in-Settings entry point and a path for migrating older setups.
+The only thing that configures the running effect is the standalone [GTK4 configurator](configurator.gen.html) (`poxicle-config`) and the neutral file it writes. The bundled **KCM** (`kwin_poxicle_config.so`, the "Configure" button in System Settings) is **vestigial and not used**: its `load()`/`save()` still target the legacy `kwinrc [Effect-poxicle_kwin]` group, which `poxconfig.cpp` no longer reads, so edits made there have no effect on the ring. Configure the effect with `poxicle-config`.
 
 Because the plugin is loaded into the running compositor, recompiled effect or engine code does **not** hot-reload — applying it requires a real KWin restart (log out / log back in on Wayland). Palette and rule edits from the configurator *do* apply live, via the D-Bus reconfigure. During development the effect is iterated in a nested `kwin_wayland` via `run-nested.sh` (and `run-nested-chiguiro.sh`, which launches Chiguiro with `KGX_POXICLE=compositor` to drive the stream path).
 

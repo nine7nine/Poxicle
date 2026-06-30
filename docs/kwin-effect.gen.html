@@ -135,7 +135,7 @@
 <li><a href="#6-ring-only-repaint-and-idle-parking">Ring-only repaint and idle parking</a></li>
 <li><a href="#7-the-un-minimize-grace">The un-minimize grace</a></li>
 <li><a href="#8-the-poxbridge-receiver">The poxbridge receiver</a></li>
-<li><a href="#9-configuration-the-neutral-file-vs-the-kcm">Configuration: the neutral file vs the KCM</a></li>
+<li><a href="#9-configuration-the-neutral-config-file">Configuration: the neutral config file</a></li>
 <li><a href="#10-design-rules">Design rules</a></li>
 </ol>
 
@@ -296,11 +296,11 @@
 
 <p>The three <code>Q_SCRIPTABLE</code> methods are <code>Register(pid, shm)</code>, <code>Unregister(pid)</code>, and <code>Wake(pid)</code>. <code>Register</code> dups the fd, <code>fstat</code>s its real size, maps it read-only, validates the <code>PoxBridgeHeader</code>, replaces any prior stream for that pid, stores an <code>ExtStream</code> keyed by pid, and binds it. <code>readStreamFrame</code> is the <a href="poxbridge.gen.html#4-the-seqlock">seqlock reader</a> (up to 4 retries); after <code>kStreamIdleGrace = 4</code> empty polls the stream clears so a quiet producer lets KWin sleep. A stream <strong>takes precedence</strong> over a window&rsquo;s per-app engine — binding drops any owns-sim state so the two never double-draw. A producer is matched to its window by PID. The bundled <code>poxbridge-test</code> executable is a standalone producer that stands in for Chiguiro to exercise this path in a nested KWin.</p>
 
-<h2 id="9-configuration-the-neutral-file-vs-the-kcm">9. Configuration: the neutral file vs the KCM</h2>
+<h2 id="9-configuration-the-neutral-config-file">9. Configuration: the neutral config file</h2>
 
 <p>At runtime the effect reads the <strong>DE-neutral config file</strong> — <code>~/.config/poxicle/poxicle.conf</code>, group <code>[poxicle]</code> — via <code>poxconfig.cpp</code>, opened fresh each <code>reconfigure()</code> so a save is picked up rather than a cached copy. It resolves the <code>Preset-&lt;name&gt;</code> edits, <code>Rules</code>, <code>Active</code>, and <code>Panel</code> targets exactly as documented in <a href="configuration.gen.html">Configuration &amp; Presets</a>; <code>resolve()</code> matches the first rule whose appId is a case-insensitive substring of the window class, with no global default. It additionally reads <code>kwinrc</code> for the configured Magic Lamp animation duration, since that non-affine warp must be covered by the un-minimize grace.</p>
 
-<p>There is one wrinkle worth knowing. The bundled <strong>KCM</strong> (<code>PoxicleKcm</code> → <code>kwin_poxicle_config.so</code>, the &ldquo;Configure&rdquo; button in System Settings) presents a per-app rules table, but its <code>load()</code>/<code>save()</code> still target the legacy <code>kwinrc [Effect-poxicle_kwin]</code> group — which the runtime reader no longer consults. The supported editor is therefore the standalone <a href="configurator.gen.html">GTK4 configurator</a> (<code>poxicle-config</code>), which writes the neutral file the effect actually reads; the KCM remains as the in-Settings entry point and a path for migrating older setups.</p>
+<p>The only thing that configures the running effect is the standalone <a href="configurator.gen.html">GTK4 configurator</a> (<code>poxicle-config</code>) and the neutral file it writes. The bundled <strong>KCM</strong> (<code>kwin_poxicle_config.so</code>, the &ldquo;Configure&rdquo; button in System Settings) is <strong>vestigial and not used</strong>: its <code>load()</code>/<code>save()</code> still target the legacy <code>kwinrc [Effect-poxicle_kwin]</code> group, which <code>poxconfig.cpp</code> no longer reads, so edits made there have no effect on the ring. Configure the effect with <code>poxicle-config</code>.</p>
 
 <p>Because the plugin is loaded into the running compositor, recompiled effect or engine code does <strong>not</strong> hot-reload — applying it requires a real KWin restart (log out / log back in on Wayland). Palette and rule edits from the configurator <em>do</em> apply live, via the D-Bus reconfigure. During development the effect is iterated in a nested <code>kwin_wayland</code> via <code>run-nested.sh</code> (and <code>run-nested-chiguiro.sh</code>, which launches Chiguiro with <code>KGX_POXICLE=compositor</code> to drive the stream path).</p>
 
