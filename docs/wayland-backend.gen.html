@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle — The Wayland Subsurface Backend</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="poxicle--the-wayland-subsurface-backend">poxicle — The Wayland Subsurface Backend</h1>
+
+<p>The Wayland backend is <code>src/poxicle-wl.c</code> behind <code>include/poxicle-wl.h</code>: an opt-in host that rides a particle overlay on a window the app already owns, using only core Wayland, with its own EGL context and a self-driving frame loop.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-what-the-backend-is">What the backend is</a></li>
+<li><a href="#2-core-wayland-only-the-de-agnostic-subsurface">Core Wayland only: the DE-agnostic subsurface</a></li>
+<li><a href="#3-transparent-and-click-through">Transparent and click-through</a></li>
+<li><a href="#4-its-own-egl-context">Its own EGL context</a></li>
+<li><a href="#5-the-self-driving-frame-loop-and-idle-parking">The self-driving frame loop and idle parking</a></li>
+<li><a href="#6-positioning-and-resize">Positioning and resize</a></li>
+<li><a href="#7-external-render-sources">External render sources</a></li>
+<li><a href="#8-bring-your-own-context">Bring your own context</a></li>
+<li><a href="#9-design-rules">Design rules</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-what-the-backend-is">1. What the backend is</h2>
+
+<p>The reusable <a href="simulation-core.gen.html">core</a> and <a href="renderer.gen.html">renderer</a> need nothing but a current GL context. The Wayland backend is the first of two ways to <em>give</em> them one. It is a thin, separate unit — kept out of the core library — that creates a transparent overlay surface over a host window, equips it with an EGL/GLES3 context, and animates it independently of the host&rsquo;s own drawing. The host just feeds it size and triggers.</p>
+
+<pre><code class="language-c code-block">
+PoxWl *w = pox_wl_new(display, compositor, subcompositor, parent, width, height, scale);
+pox_engine_set_ambient(pox_wl_engine(w), 1);   /* drive the engine via pox_wl_engine() */
+/* host commits its parent surface so the subsurface maps */
+</code></pre>
+
+
+<p>This is the path the Chiguiro terminal uses for its in-app overlay, and the path the <code>poxicle-host</code> demo exercises. The whole backend is ~230 lines because the heavy lifting is the core and the renderer; this file is just the Wayland and EGL plumbing.</p>
+
+<h2 id="2-core-wayland-only-the-de-agnostic-subsurface">2. Core Wayland only: the DE-agnostic subsurface</h2>
+
+<p>The overlay is a <code>wl_subsurface</code> over the host&rsquo;s surface, built from <strong>only <code>wl_compositor</code> + <code>wl_subcompositor</code></strong> — globals that <em>every</em> Wayland compositor implements. It deliberately does <strong>not</strong> use <code>wlr-layer-shell</code> or any desktop-specific protocol, so the same code works on KWin, Mutter, Hyprland and wlroots alike.</p>
+
+<p>A subsurface is the correct equivalent of &ldquo;drawing on a window,&rdquo; and the reason poxicle does not try to draw directly on other apps' windows: Wayland forbids that — a client can only render to its own surfaces and can&rsquo;t read other windows' geometry. A subsurface instead rides <em>with</em> a host window the app already owns. The host passes the globals it already bound (display, compositor, subcompositor) plus the parent surface and current size; the backend creates the subsurface and sets it <strong>desynchronized</strong> (<code>wl_subsurface_set_desync</code>) so it can commit its own frames without waiting on the parent&rsquo;s commit cycle.</p>
+
+<h2 id="3-transparent-and-click-through">3. Transparent and click-through</h2>
+
+<p>Two properties make the overlay invisible to interaction. It is <strong>transparent</strong> — each frame clears to <code>rgba(0,0,0,0)</code> and draws only premultiplied particles over it — and it is <strong>click-through</strong>: the backend sets an <strong>empty input region</strong> (<code>wl_surface_set_input_region</code> with an empty <code>wl_region</code>), so pointer and touch events fall straight through to the parent window. From the user&rsquo;s point of view the particles decorate the window without ever intercepting a click.</p>
+
+<h2 id="4-its-own-egl-context">4. Its own EGL context</h2>
+
+<p>The overlay gets a dedicated EGL/GLES3 context so its rendering is fully independent of how the host draws. <code>egl_setup()</code> obtains the Wayland platform display via <code>eglGetPlatformDisplay(EGL_PLATFORM_WAYLAND_KHR, ...)</code>, binds the GLES API, chooses an RGBA8 config with <strong>8-bit alpha</strong> (required for the transparent overlay), creates a GLES3 context, wraps the subsurface in a <code>wl_egl_window</code>, and creates the window surface. After <code>pox_wl_new</code> makes the context current it constructs a <a href="renderer.gen.html"><code>PoxGL</code></a> renderer and a <a href="simulation-core.gen.html"><code>PoxEngine</code></a> sized to the window, then draws the first frame, which arms the animation loop.</p>
+
+<h2 id="5-the-self-driving-frame-loop-and-idle-parking">5. The self-driving frame loop and idle parking</h2>
+
+<p>The backend animates itself: each frame it schedules the next via the subsurface&rsquo;s own <code>wl_surface_frame</code> callback, then <code>eglSwapBuffers</code> to commit. <code>draw()</code> computes <code>dt</code> from a monotonic clock (clamped to 0.1 s so a stall doesn&rsquo;t fast-forward the sim), ticks the engine (or an <a href="#7-external-render-sources">external source</a>), clears, renders, and reschedules.</p>
+
+<p>The critical refinement is <strong>idle parking</strong>. A desynchronized subsurface that keeps committing every vblank would keep the GPU and compositor awake forever. So once nothing is animating — <code>pox_engine_active()</code> returns false, or in source mode the source produced no instances — the loop draws a couple of trailing frames (<code>POX_WL_IDLE_GRACE = 2</code>) to flush the now-empty overlay, then stops scheduling frame callbacks and sets a <code>parked</code> flag. <code>pox_wl_wake()</code> restarts the loop when new work arrives — after firing a trigger on the engine, or when a source starts producing again. It drops the parked time gap so <code>dt</code> doesn&rsquo;t jump, and is cheap and idempotent while the loop is already running.</p>
+
+<p>One teardown invariant earns its comment: <code>pox_wl_free()</code> must cancel any in-flight frame callback <em>before</em> tearing down its surface. Otherwise the callback fires after the free and dispatches <code>draw()</code> on freed memory — a use-after-free in <code>wl_surface_frame</code>. The free path destroys the pending callback, frees the engine, makes the context current to free the renderer, then unwinds the EGL surface, context, <code>wl_egl_window</code>, subsurface and surface in order.</p>
+
+<h2 id="6-positioning-and-resize">6. Positioning and resize</h2>
+
+<p><code>pox_wl_resize(w, width, height, scale)</code> keeps the overlay matched to the host window: it resizes the <code>wl_egl_window</code> and re-sizes the engine&rsquo;s surface so the perimeter math tracks the new geometry. <code>pox_wl_set_position(w, x, y)</code> positions the overlay within the parent in parent-local logical coordinates — used to inset past client-side-decoration shadow margins so the overlay hugs the <em>visible</em> window rather than the full surface. Position changes apply on the parent&rsquo;s next commit.</p>
+
+<h2 id="7-external-render-sources">7. External render sources</h2>
+
+<p>The backend can draw instances from something other than its own engine. <code>pox_wl_set_source(w, source, user)</code> installs a callback that, each frame, writes up to <code>cap</code> instances into a buffer and returns the count; the overlay draws those instead of running its internal sim. Passing <code>NULL</code> reverts to the engine.</p>
+
+<p>This is the in-process seam that the <a href="poxbridge.gen.html">poxbridge protocol</a> generalises across processes. In source mode, &ldquo;active&rdquo; means &ldquo;the source produced particles this frame,&rdquo; and the same idle-parking applies — when the source goes quiet the loop parks, and the host calls <code>pox_wl_wake()</code> when it resumes. Chiguiro uses exactly this hook to feed its own sim&rsquo;s <code>KgxParticleInstance[]</code> (byte-identical to <code>PoxInstance</code>) into the overlay with zero copying.</p>
+
+<h2 id="8-bring-your-own-context">8. Bring your own context</h2>
+
+<p>The second backend isn&rsquo;t a file — it&rsquo;s the absence of one. <strong>BYOC (&ldquo;bring your own context&rdquo;)</strong> means the host already has a current GL context and simply calls <a href="renderer.gen.html"><code>pox_gl_render(instances, ...)</code></a> inside its own GL frame. There is no windowing code to involve: an X11/GLX app, a game engine, or any custom GL application runs the sim with <code>pox_engine_tick</code>, then draws the result with the renderer in its existing pass. The <a href="kwin-effect.gen.html">KWin effect</a> is effectively a BYOC host — it owns KWin&rsquo;s GL context and surface, and feeds the renderer KWin&rsquo;s projection matrix through <code>pox_gl_render_mvp</code>. For non-Wayland or non-cooperative cases where a subsurface isn&rsquo;t available, BYOC is the answer.</p>
+
+<h2 id="9-design-rules">9. Design rules</h2>
+
+<ul>
+<li><strong>Core Wayland only.</strong> <code>wl_compositor</code> + <code>wl_subcompositor</code> are universal; avoiding <code>wlr-layer-shell</code> keeps the backend desktop-agnostic across KWin, Mutter, Hyprland and wlroots.</li>
+<li><strong>Ride a window you own.</strong> Wayland forbids drawing on other clients' surfaces; a desynchronized subsurface over the host&rsquo;s own window is the correct, portable equivalent.</li>
+<li><strong>Invisible to input.</strong> Transparent clear plus an empty input region make the overlay decorate without ever intercepting a click.</li>
+<li><strong>Park when quiet.</strong> The self-driving frame loop stops committing once the engine (or source) goes idle, so the GPU and compositor sleep; <code>pox_wl_wake()</code> restarts it.</li>
+<li><strong>Two ways to supply instances.</strong> The internal engine or an external source — and the same hook that feeds an in-process producer is what poxbridge extends across processes.</li>
+<li><strong>Cancel before free.</strong> Destroy any pending frame callback before tearing down the surface, or it fires into freed memory.</li>
+</ul>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

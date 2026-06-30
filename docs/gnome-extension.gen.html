@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle — The GNOME Shell Extension</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="poxicle--the-gnome-shell-extension">poxicle — The GNOME Shell Extension</h1>
+
+<p>The GNOME Shell extension (<code>gnome/poxicle@nine7nine.github.com/</code>) is the GNOME port of the particle ring: a gjs extension that drives the <em>same</em> C engine through <code>gi://Poxicle</code>, draws on the GPU with Cogl, and receives producer streams over the same bridge as the KWin effect.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-what-the-extension-is">What the extension is</a></li>
+<li><a href="#2-loading-the-engine-via-gipoxicle">Loading the engine via gi://Poxicle</a></li>
+<li><a href="#3-gpu-drawing-with-a-cogl-actor">GPU drawing with a Cogl actor</a></li>
+<li><a href="#4-the-active-window-overlay">The active-window overlay</a></li>
+<li><a href="#5-the-panel-ring">The panel ring</a></li>
+<li><a href="#6-the-stream-receiver">The stream receiver</a></li>
+<li><a href="#7-minimize-gating-and-the-un-minimize-grace">Minimize gating and the un-minimize grace</a></li>
+<li><a href="#8-config-clocks-and-fullscreen">Config, clocks, and fullscreen</a></li>
+<li><a href="#9-design-rules">Design rules</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-what-the-extension-is">1. What the extension is</h2>
+
+<p>The extension plays two roles, both backed by one engine so there is no JS sim to keep in sync with the C one:</p>
+
+<ul>
+<li>an <strong>ambient self-sim</strong> that follows the focused window and overlays a particle ring around its frame, and</li>
+<li>a <strong>bridge receiver</strong> that owns <code>org.ninez.PoxicleBridge</code>, so a producer (e.g. Chiguiro) can stream ready-to-draw instances onto its own window under GNOME exactly as it does under KWin.</li>
+</ul>
+
+
+<table>
+<thead>
+<tr>
+<th> Property </th>
+<th> Value </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> UUID </td>
+<td> <code>poxicle@nine7nine.github.com</code> </td>
+</tr>
+<tr>
+<td> Target </td>
+<td> GNOME Shell 50 (ESM extensions), Wayland or X11 </td>
+</tr>
+<tr>
+<td> Engine </td>
+<td> <code>gi://Poxicle</code> — the same <code>libpoxicle</code> C engine the KWin effect links </td>
+</tr>
+<tr>
+<td> Frame clock </td>
+<td> one <code>GLib.timeout_add</code> at <code>TICK_MS = 16</code> (~60 fps) drives both roles </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>It mirrors the KWin effect&rsquo;s behaviour deliberately: the same per-object seeds, the same fullscreen skip, the same un-minimize grace, the same panel edge-mask logic, and the same bridge protocol. (The extension&rsquo;s <code>README.md</code> describes an older Cairo-based prototype; the shipping code is the GPU/Cogl implementation described here.)</p>
+
+<h2 id="2-loading-the-engine-via-gipoxicle">2. Loading the engine via gi://Poxicle</h2>
+
+<p>The extension imports the engine like any GObject-Introspection namespace and constructs engines directly:</p>
+
+<pre><code class="language-js code-block">
+import Pox from 'gi://Poxicle';
+const engine = new Pox.Engine();
+</code></pre>
+
+
+<p>This is the whole point of the <a href="gobject-binding.gen.html">GObject binding</a>: GNOME and KWin run the identical simulation, so a preset or palette looks the same on both. The <code>Poxicle-1.0.typelib</code> is found at runtime simply by being installed under the system prefix where gjs&rsquo;s introspection repository searches — there is no hard-coded path in the extension (see <a href="build.gen.html">Build, Install &amp; Packaging</a>). The other imports are stock — <code>GLib</code>, <code>Gio</code>, <code>Meta</code>, <code>Clutter</code>, <code>Cogl</code>, <code>GObject</code>, <code>St</code>, plus the Shell ESM <code>Extension</code> and <code>Main</code>.</p>
+
+<h2 id="3-gpu-drawing-with-a-cogl-actor">3. GPU drawing with a Cogl actor</h2>
+
+<p>Drawing is entirely on the GPU. A per-frame, window-sized Cairo surface — the obvious approach — stalled interactive resize, so the extension instead uploads a triangulated vertex blob and draws it with a Cogl pipeline. <code>PoxicleParticleActor</code> is a <code>Clutter.Actor</code> subclass with <code>reactive: false</code> (clicks pass through to the window) and a custom <code>vfunc_paint</code>:</p>
+
+<ol>
+<li>It takes this frame&rsquo;s blob from the engine via <a href="gobject-binding.gen.html#3-two-tick-outputs-instances-and-vertices"><code>tick_vertices</code></a> — interleaved <code>P2C4</code> vertices (<code>float x, y</code> + 4 premultiplied <code>u8 r, g, b, a</code>, 12-byte stride).</li>
+<li>In <code>vfunc_paint</code> it gets the framebuffer and Cogl context, lazily builds a <code>Cogl.Pipeline</code> with a premultiplied &ldquo;over&rdquo; blend string (<code>RGBA = ADD(SRC_COLOR, DST_COLOR*(1-SRC_COLOR[A]))</code>), wraps the blob in a <code>Cogl.AttributeBuffer</code>, defines two <code>Cogl.Attribute</code>s (<code>cogl_position_in</code> at offset 0, <code>cogl_color_in</code> at offset 8), and draws one <code>Cogl.Primitive</code> of <code>TRIANGLES</code>.</li>
+</ol>
+
+
+<p>That is a <strong>single draw call per frame</strong> through Cogl&rsquo;s stock position+colour pipeline — no JS-authored shaders, no Cairo, no per-frame surface. The premultiplied colours come straight from the C side, matching the blend string. If a GPU paint ever throws, the actor disables itself and logs once, to avoid per-frame log spam.</p>
+
+<h2 id="4-the-active-window-overlay">4. The active-window overlay</h2>
+
+<p>On enable, the extension connects <code>global.display</code>&rsquo;s <code>notify::focus-window</code> to a retarget. <code>_retarget()</code> untracks the previous window, then for a normal focused window applies the look with <code>engine.apply_config(win.get_wm_class())</code> (which resolves the <a href="configuration.gen.html">neutral config</a> in C), parents the actor under <code>global.window_group</code> as a sibling of window actors, and places it. <code>_place()</code> reads <code>win.get_frame_rect()</code>, sizes the actor and the engine surface to it, and treats the frame-local origin as the engine origin. The overlay tracks <code>position-changed</code> and <code>size-changed</code> to re-place, and <code>unmanaged</code> to untrack. Corner rounding (GNOME rounds all four corners) is driven by the engine from the config&rsquo;s corner keys.</p>
+
+<h2 id="5-the-panel-ring">5. The panel ring</h2>
+
+<p>The GNOME top bar is chrome, not a <code>Meta.Window</code>, so the panel ring is a <strong>separate engine and actor on its own clock</strong>, added directly to <code>Main.layoutManager.uiGroup</code>. <code>_retargetPanel()</code> applies the <code>Panel</code> target via <code>engine.apply_panel_config()</code> (which deliberately keeps <strong>sharp corners</strong>). Panel geometry is polled each tick from <code>Main.layoutManager.panelBox</code>: if the shell has hidden the panel (e.g. under a fullscreen window) the actor is hidden; otherwise the actor and engine surface are resized to the panel allocation and the edge mask is recomputed.</p>
+
+<p><code>_applyPanelEdgeMask()</code> lights only the edges that face the screen interior, using the primary monitor geometry and a 1 px epsilon: a top full-width bar lights its bottom edge only; a centred or floating panel adds its sides. This is the exact parity with the <a href="kwin-effect.gen.html#5-eligibility-panels-and-edge-masks">KWin effect&rsquo;s panel handling</a>, down to the edge-mask semantics, so a <code>Panel</code> rule looks the same on both desktops.</p>
+
+<h2 id="6-the-stream-receiver">6. The stream receiver</h2>
+
+<p>The extension owns <code>org.ninez.PoxicleBridge</code> on the session bus, exporting <code>Register</code> / <code>Unregister</code> / <code>Wake</code>. <code>Register</code> must be handled <strong>asynchronously</strong> (<code>RegisterAsync</code>) to reach the message&rsquo;s Unix fd list — the plain wrapped-method path can&rsquo;t carry file descriptors. On register it pulls the fd from the message&rsquo;s fd list, creates a fresh <code>Pox.Engine</code>, calls <code>attach_stream(fd)</code> (which takes ownership of the fd), and records a per-pid stream with its own actor. Each tick it pulls the latest complete frame with <code>read_stream_vertices()</code> and, when that returns non-null, updates the actor&rsquo;s vertices — <code>null</code> meaning &ldquo;no new frame, keep drawing the last,&rdquo; an empty blob meaning &ldquo;clear.&rdquo; <code>Wake</code> is a deliberate no-op kept for protocol parity: the per-tick clock already polls every stream, so an idle→active edge needs no explicit un-park. The C side of all this is the binding&rsquo;s <a href="gobject-binding.gen.html#6-the-stream-receiver">seqlock reader</a>.</p>
+
+<p>A streaming window still gets the focus overlay drawn additively on top — a stream replaces only that window&rsquo;s <em>own</em> per-app look, never the focus ring — which matches the KWin effect&rsquo;s behaviour.</p>
+
+<h2 id="7-minimize-gating-and-the-un-minimize-grace">7. Minimize gating and the un-minimize grace</h2>
+
+<p>Because the overlay actors are siblings of the window actor in <code>window_group</code>, Mutter&rsquo;s minimize-hide does not cover them — without gating, a ring would freeze mid-air where the window used to be. So for <strong>stream</strong> windows, each tick checks <code>win.minimized</code>: while minimized (or fullscreen, or inside the grace window) the actor is hidden and the frame is skipped; on the show-after-restore edge the overlay is re-aimed at the settled frame rectangle.</p>
+
+<p>On the un-minimize edge the extension arms a suppression window of <code>UNMINIMIZE_GRACE</code> milliseconds, <strong>scaled by the user&rsquo;s animation speed</strong> (<code>St.Settings.slow_down_factor</code>) and collapsing to zero when animations are disabled. This holds the ring through the un-minimize so it doesn&rsquo;t snap to the settled rectangle while Magic Lamp / Burn My Windows is still warping the window up from the panel — the same idea as the <a href="kwin-effect.gen.html#7-the-un-minimize-grace">KWin effect&rsquo;s grace</a>. The grace defaults to 350 ms and is read live from the config&rsquo;s <code>UnminimizeGrace</code> key (clamped 0–2000) on enable and on every config change.</p>
+
+<h2 id="8-config-clocks-and-fullscreen">8. Config, clocks, and fullscreen</h2>
+
+<p>The extension does not parse the config itself — it <strong>watches</strong> it. <code>~/.config/poxicle/poxicle.conf</code> is monitored with a <code>Gio.FileMonitor</code>; on change it re-reads the grace and re-applies both the focus and panel looks. The actual resolution happens in C via <code>apply_config</code> / <code>apply_panel_config</code>, so GNOME and KWin honour byte-identical edits (see <a href="configuration.gen.html">Configuration &amp; Presets</a>).</p>
+
+<p>Two more parities with the effect round it out. Each independently-simulated engine is given a unique seed from a monotonic counter (<code>set_seed</code>) so the focus ring and the panel ring don&rsquo;t animate in lockstep. And the ambient overlay skips <strong>fullscreen</strong> windows each tick (<code>win.is_fullscreen()</code> → hide), since a ring would draw over edge-to-edge content; the panel honours fullscreen implicitly because the shell hides the panel box.</p>
+
+<h2 id="9-design-rules">9. Design rules</h2>
+
+<ul>
+<li><strong>One engine, two desktops.</strong> The extension drives the same C engine through <code>gi://Poxicle</code>, so every preset, palette and rule renders identically under GNOME and KWin.</li>
+<li><strong>Draw on the GPU.</strong> A Cogl actor uploads a premultiplied vertex blob and draws it in one primitive per frame — no Cairo, no per-frame surface, no resize stall.</li>
+<li><strong>Watch the config, resolve in C.</strong> The extension only monitors the neutral file; <code>apply_config</code> does the parsing, so there is no second config parser to drift.</li>
+<li><strong>Mirror the effect.</strong> Per-object seeds, fullscreen skip, the un-minimize grace, panel edge masks, and the bridge protocol all match the KWin effect on purpose.</li>
+<li><strong>Gate siblings explicitly.</strong> Overlay actors aren&rsquo;t hidden by Mutter&rsquo;s minimize, so the extension hides them itself and holds them through the un-minimize warp.</li>
+</ul>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

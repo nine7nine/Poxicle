@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle — The KWin Plasma 6 Effect</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="poxicle--the-kwin-plasma-6-effect">poxicle — The KWin Plasma 6 Effect</h1>
+
+<p>The KWin effect (<code>kwin/</code>) is a standalone Plasma 6 compositor effect that draws poxicle edge particles around each window, by compiling the engine straight into a KWin plugin and feeding the renderer KWin&rsquo;s own projection matrix.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-what-the-effect-is">What the effect is</a></li>
+<li><a href="#2-the-67-effect-api-port">The 6.7 Effect API port</a></li>
+<li><a href="#3-the-per-window-paint-pipeline">The per-window paint pipeline</a></li>
+<li><a href="#4-gl-context-and-state-hygiene">GL context and state hygiene</a></li>
+<li><a href="#5-eligibility-panels-and-edge-masks">Eligibility, panels, and edge masks</a></li>
+<li><a href="#6-ring-only-repaint-and-idle-parking">Ring-only repaint and idle parking</a></li>
+<li><a href="#7-the-un-minimize-grace">The un-minimize grace</a></li>
+<li><a href="#8-the-poxbridge-receiver">The poxbridge receiver</a></li>
+<li><a href="#9-configuration-the-neutral-file-vs-the-kcm">Configuration: the neutral file vs the KCM</a></li>
+<li><a href="#10-design-rules">Design rules</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-what-the-effect-is">1. What the effect is</h2>
+
+<p><code>PoxicleEffect</code> subclasses <strong><code>KWin::Effect</code></strong> directly — not <code>OffscreenEffect</code>. It does not render windows to offscreen textures; it draws particles with raw GL straight into KWin&rsquo;s paint passes, on top of each window&rsquo;s own content. The engine is not a shared library here: the CMake build compiles <a href="simulation-core.gen.html"><code>../src/poxicle.c</code></a> and <a href="renderer.gen.html"><code>../src/poxicle-gl.c</code></a> directly into the plugin, with no Wayland/EGL backend, because KWin already owns the surface and the GL context. This makes the effect a <a href="wayland-backend.gen.html#8-bring-your-own-context">bring-your-own-context host</a>.</p>
+
+<table>
+<thead>
+<tr>
+<th> Property </th>
+<th> Value </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> Class / plugin </td>
+<td> <code>PoxicleEffect</code> → <code>poxicle_kwin.so</code> in <code>kwin/effects/plugins</code> </td>
+</tr>
+<tr>
+<td> Factory </td>
+<td> <code>KWIN_EFFECT_FACTORY_SUPPORTED(..., return KWin::effects-&gt;isOpenGLCompositing();)</code> </td>
+</tr>
+<tr>
+<td> Metadata </td>
+<td> Name &ldquo;Poxicle Particles&rdquo;, Category &ldquo;Appearance&rdquo;, <code>EnabledByDefault: false</code>, GPL-3.0-or-later </td>
+</tr>
+<tr>
+<td> Configure module </td>
+<td> <code>X-KDE-ConfigModule: kwin_poxicle_config</code> </td>
+</tr>
+<tr>
+<td> Chain position </td>
+<td> <code>requestedEffectChainPosition() == 90</code> — draws over each window&rsquo;s content </td>
+</tr>
+<tr>
+<td> Target </td>
+<td> KWin / Plasma 6 (6.6.5+) </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Because the effect&rsquo;s plugin-factory IID embeds the KWin effect-API version, and that API is <strong>not binary-compatible</strong> across KWin releases, the plugin must be rebuilt whenever KWin bumps its API — which is why the install path always does a clean build (see <a href="build.gen.html">Build, Install &amp; Packaging</a>).</p>
+
+<h2 id="2-the-67-effect-api-port">2. The 6.7 Effect API port</h2>
+
+<p>The effect was ported from the 6.6.5 design to KWin 6.7&rsquo;s Effect API, which changed several signatures and capabilities:</p>
+
+<ul>
+<li><strong><code>prePaintScreen</code> lost its <code>presentTime</code> argument.</strong> Present time is now derived from <code>data.frame-&gt;targetPageflipTime()</code> (a <code>KWin::OutputFrame</code>), falling back to the last known present when no frame is attached.</li>
+<li><strong>Drawing moved from the whole-scene overlay to per-window <code>paintWindow</code>.</strong> The original drew every window&rsquo;s particles above the entire scene; the port draws each window&rsquo;s particles in its own pass <em>after</em> that window is painted, so they are correctly <strong>occluded by windows stacked above</strong>.</li>
+<li><strong><code>prePaintWindow</code> gained a leading <code>RenderView *</code> parameter.</strong></li>
+<li><strong><code>WindowPrePaintData::devicePaint</code> was removed.</strong> That field used to expand a window&rsquo;s paint region so particles could draw outside its bounding scissor. The only remaining way is to mark the window transformed via <code>data.setTransformed()</code> — done <strong>only</strong> when the window actually has particles this frame, so idle windows stay on the cheap, region-limited path.</li>
+</ul>
+
+
+<p>The effect overrides <code>prePaintScreen</code>, <code>prePaintWindow</code>, <code>paintWindow</code>, <code>postPaintScreen</code>, <code>isActive</code>, and <code>reconfigure</code>.</p>
+
+<h2 id="3-the-per-window-paint-pipeline">3. The per-window paint pipeline</h2>
+
+<p>Each frame walks two phases — a screen-wide advance, then a per-window draw:</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 920 340" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg    { fill: #1a1b26; }
+    .box   { fill: #24283b; stroke: #3b4261; stroke-width: 1; }
+    .pre   { fill: #1a2235; stroke: #7aa2f7; stroke-width: 1.5; }
+    .paint { fill: #16242b; stroke: #7dcfff; stroke-width: 1.5; }
+    .post  { fill: #1a2a1a; stroke: #9ece6a; stroke-width: 1.5; }
+    .lbl   { fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm{ fill: #c0caf5; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut{ fill: #a9b1d6; font-size: 9px;  font-family: 'JetBrains Mono', monospace; }
+    .lbl-blu{ fill: #7aa2f7; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-cy{ fill: #7dcfff; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-grn{ fill: #9ece6a; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .ln    { stroke: #7dcfff; stroke-width: 1.5; fill: none; }
+    .title { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+  </style>
+  <rect x="0" y="0" width="920" height="340" class="bg" rx="6"/>
+  <text x="460" y="26" text-anchor="middle" class="title">one compositor frame</text>
+
+  <rect x="30" y="50" width="380" height="120" class="pre" rx="6"/>
+  <text x="50" y="72" class="lbl-blu">prePaintScreen (once per output)</text>
+  <rect x="50" y="84" width="340" height="34" class="box" rx="6"/>
+  <text x="220" y="105" text-anchor="middle" class="lbl-sm">tick each engine: pox_engine_tick -> m_scratch</text>
+  <rect x="50" y="124" width="340" height="34" class="box" rx="6"/>
+  <text x="220" y="145" text-anchor="middle" class="lbl-mut">offset by frameGeometry().x()/y() -> fx.instances</text>
+
+  <rect x="510" y="50" width="380" height="120" class="paint" rx="6"/>
+  <text x="530" y="72" class="lbl-cy">paintWindow (per window, after its content)</text>
+  <rect x="530" y="84" width="340" height="34" class="box" rx="6"/>
+  <text x="700" y="105" text-anchor="middle" class="lbl-sm">mvp = viewport.projectionMatrix()</text>
+  <rect x="530" y="124" width="340" height="34" class="box" rx="6"/>
+  <text x="700" y="145" text-anchor="middle" class="lbl-mut">mvp.translate(data.*Translation); pox_gl_render_mvp</text>
+
+  <rect x="270" y="220" width="380" height="90" class="post" rx="6"/>
+  <text x="290" y="242" class="lbl-grn">postPaintScreen</text>
+  <rect x="290" y="254" width="340" height="34" class="box" rx="6"/>
+  <text x="460" y="275" text-anchor="middle" class="lbl-sm">requestRingRepaint: damage 4 edge strips only</text>
+  <text x="460" y="300" text-anchor="middle" class="lbl-mut">while m_active; else KWin parks (no repaint requested)</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="410" y1="110" x2="510" y2="110" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="700" y1="170" x2="460" y2="220" class="ln"/>
+</svg>
+</div>
+
+
+<p>In <code>prePaintScreen</code>, every tracked engine is advanced with <code>pox_engine_tick(engine, dt, m_scratch, ...)</code> (the scratch buffer holds 4096 instances). poxicle emits surface-local pixels, so each instance&rsquo;s <code>x/y</code> is offset by the window&rsquo;s <code>frameGeometry()</code> to become global logical coordinates and stashed per-window in <code>fx.instances</code>. <code>dt</code> comes from the difference of present timestamps, and the whole advance is gated <code>presentTime &gt; m_lastPresent</code> so a multi-output frame (which fires <code>prePaintScreen</code> once per output) never double-advances the sim.</p>
+
+<p>In <code>paintWindow</code>, the projection is <strong>KWin&rsquo;s own</strong>: <code>mvp = viewport.projectionMatrix()</code> — the logical→clip matrix that already handles output scale and transform, column-major exactly as <a href="renderer.gen.html"><code>pox_gl_render_mvp</code></a> wants, with no manual Y-flip. The matrix is then <code>translate</code>d by the window paint data&rsquo;s per-frame translation so the ring tracks interactive moves: particles are positioned from the <em>committed</em> geometry, which lags a drag by a frame or two, and the translation re-applies KWin&rsquo;s in-flight offset so they don&rsquo;t trail. The base layer (a per-app engine or an external stream — mutually exclusive per window) is drawn first, then the focus-following active-window overlay on top.</p>
+
+<h2 id="4-gl-context-and-state-hygiene">4. GL context and state hygiene</h2>
+
+<p>The effect creates its <code>PoxGL</code> renderer in the constructor — the framework guarantees a current GL context there. Two pieces of GL hygiene are mandatory, because poxicle-gl sets up and leaves bound its own state and never restores KWin&rsquo;s:</p>
+
+<ul>
+<li>Around <code>pox_gl_new()</code>, the effect saves and restores <code>GL_VERTEX_ARRAY_BINDING</code> and <code>GL_ARRAY_BUFFER_BINDING</code>. Otherwise the renderer&rsquo;s VAO stays bound and floods KWin&rsquo;s own draws with <code>GL_INVALID_OPERATION</code> (&ldquo;no array object bound&rdquo;).</li>
+<li>Around every <code>pox_gl_render_mvp</code> in <code>paintWindow</code>, it saves and restores the current program, VAO, array-buffer binding, the blend enable, and the separate blend function — all of which the renderer clobbers.</li>
+</ul>
+
+
+<p>The window&rsquo;s particle surface is sized with <code>pox_engine_set_surface(engine, geom.width(), geom.height(), 1)</code>; the scale hint is hard-coded to 1 because positions stay logical and KWin&rsquo;s projection applies the device scale.</p>
+
+<h2 id="5-eligibility-panels-and-edge-masks">5. Eligibility, panels, and edge masks</h2>
+
+<p>Two predicates gate everything. <code>eligible(w)</code> admits a window only if it is a normal window and not a desktop, dock, or popup. <code>visible(w)</code> — <code>isOnCurrentDesktop &amp;&amp; !isMinimized &amp;&amp; !isHiddenByShowDesktop &amp;&amp; !isFullScreen</code> — is the single per-frame gate every draw, tick and repaint path runs through. <strong>Fullscreen windows get no ring</strong>, since particles would draw over edge-to-edge content.</p>
+
+<p>A <strong>panel</strong> (a dock) is rejected by <code>eligible</code> and admitted only through the dedicated <strong><code>Panel</code> target</strong> in <code>maybeAttach</code>: if <code>resolvePanel()</code> returns an enabled rule, the dock is tracked with <code>isPanel = true</code> and an edge mask. <code>applyPanelEdgeMask(w)</code> lights an edge only when it is <em>not</em> flush against the matching screen border (a gap greater than <code>eps = 1.0</code>, derived from <code>frameGeometry()</code> vs the screen geometry). A full-width top panel therefore lights only its bottom edge; a floating panel lights all four. When a tracked panel moves or resizes, <code>prePaintScreen</code> recomputes its mask so toggling panel edge or width flips which edges face the interior. Panels keep <strong>sharp corners</strong> — the corner radius is applied only to normal windows, from the config&rsquo;s <code>CornerTop</code> / <code>CornerBottom</code>.</p>
+
+<p>Every engine is given a unique seed (<code>pox_engine_set_seed(engine, ++m_seedSeq)</code>) so multiple rings — the panel, the active overlay, each per-app window — run on <a href="simulation-core.gen.html#7-per-engine-clocks-and-idle-parking">their own clocks</a> rather than animating in lockstep.</p>
+
+<h2 id="6-ring-only-repaint-and-idle-parking">6. Ring-only repaint and idle parking</h2>
+
+<p>A naive effect would damage each window&rsquo;s whole rectangle every frame. For a translucent (glass) window that forces KWin to recomposite the entire stack behind it across the full window area — cheap for a thin ring, ruinous for a big window. So <code>requestRingRepaint()</code> damages <strong>only the four edge strips</strong> the particles occupy: it computes how deep any block reaches in from its nearest edge, then issues four <code>addRepaint</code> rectangles (top/bottom/left/right) of that thickness plus a <code>kBandMargin = 48</code> px margin. A deep effect grows the band until the strips meet (capped at a full-window band), so the ring is never under-damaged and leaves no trails.</p>
+
+<p><code>postPaintScreen</code> requests these bands for every visible window, the active overlay, and every bound stream — but only while <code>m_active</code>, which is reset each frame and set true only when some engine <code>pox_engine_active()</code> is true or a stream has instances. When nothing animates, no repaint is requested and <strong>KWin sleeps</strong>. <code>isActive()</code> returns false when there are no tracked windows, no active overlay, and no streams, letting KWin drop the effect from the chain entirely.</p>
+
+<h2 id="7-the-un-minimize-grace">7. The un-minimize grace</h2>
+
+<p>Particle rings are siblings of window content, so a window-warp animation (Magic Lamp, Squash, Glide, Burn My Windows) can finish <em>before</em> the window settles at its final rectangle — and KWin flips <code>isMinimized()</code> to false at the <strong>start</strong> of a restore. Without care the ring would snap to the settled rectangle while the warp is still mid-flight. The effect holds it with a per-window <code>Restore</code> record:</p>
+
+<ul>
+<li><code>armRestore(w)</code> sets a deadline of <code>max(minimizeAnimMs, unminimizeGraceMs) × animationTimeFactor + 60 ms</code> and forces full repaints so compositing keeps running until the hold releases. It is armed from KWin&rsquo;s <code>slotMinimizedChanged</code> and <code>slotShowingDesktopChanged(false)</code> signals.</li>
+<li>An <strong>affine</strong> restore (Squash/Glide — detected by a non-identity scale) releases the instant the scale settles. A <strong>non-affine</strong> restore (Magic Lamp shows no scale) is held until the timed deadline. Foreign affine transforms with no restore pending (overview, desktop grid, maximize) suppress the draw entirely, while interactive move/resize is exempt.</li>
+</ul>
+
+
+<p>Holds are keyed by window, so they cover per-app, overlay, and stream particles alike, and survive a producer re-registering its stream across the minimize.</p>
+
+<h2 id="8-the-poxbridge-receiver">8. The poxbridge receiver</h2>
+
+<p>The effect is the canonical receiver of the <a href="poxbridge.gen.html">poxbridge protocol</a>. In its constructor it best-effort owns <code>org.ninez.PoxicleBridge</code> on the session bus (<code>registerService</code> + <code>registerObject(..., ExportScriptableSlots)</code>); if the name is already taken — say a stale effect instance — external mode is simply unavailable while the per-app and active-window paths keep working. The class&rsquo;s <code>Q_CLASSINFO("D-Bus Interface", "org.ninez.PoxicleBridge")</code> must be a literal equal to <code>POX_BRIDGE_IFACE</code>, or QtDBus names the interface after the C++ class and producer calls fail.</p>
+
+<p>The three <code>Q_SCRIPTABLE</code> methods are <code>Register(pid, shm)</code>, <code>Unregister(pid)</code>, and <code>Wake(pid)</code>. <code>Register</code> dups the fd, <code>fstat</code>s its real size, maps it read-only, validates the <code>PoxBridgeHeader</code>, replaces any prior stream for that pid, stores an <code>ExtStream</code> keyed by pid, and binds it. <code>readStreamFrame</code> is the <a href="poxbridge.gen.html#4-the-seqlock">seqlock reader</a> (up to 4 retries); after <code>kStreamIdleGrace = 4</code> empty polls the stream clears so a quiet producer lets KWin sleep. A stream <strong>takes precedence</strong> over a window&rsquo;s per-app engine — binding drops any owns-sim state so the two never double-draw. A producer is matched to its window by PID. The bundled <code>poxbridge-test</code> executable is a standalone producer that stands in for Chiguiro to exercise this path in a nested KWin.</p>
+
+<h2 id="9-configuration-the-neutral-file-vs-the-kcm">9. Configuration: the neutral file vs the KCM</h2>
+
+<p>At runtime the effect reads the <strong>DE-neutral config file</strong> — <code>~/.config/poxicle/poxicle.conf</code>, group <code>[poxicle]</code> — via <code>poxconfig.cpp</code>, opened fresh each <code>reconfigure()</code> so a save is picked up rather than a cached copy. It resolves the <code>Preset-&lt;name&gt;</code> edits, <code>Rules</code>, <code>Active</code>, and <code>Panel</code> targets exactly as documented in <a href="configuration.gen.html">Configuration &amp; Presets</a>; <code>resolve()</code> matches the first rule whose appId is a case-insensitive substring of the window class, with no global default. It additionally reads <code>kwinrc</code> for the configured Magic Lamp animation duration, since that non-affine warp must be covered by the un-minimize grace.</p>
+
+<p>There is one wrinkle worth knowing. The bundled <strong>KCM</strong> (<code>PoxicleKcm</code> → <code>kwin_poxicle_config.so</code>, the &ldquo;Configure&rdquo; button in System Settings) presents a per-app rules table, but its <code>load()</code>/<code>save()</code> still target the legacy <code>kwinrc [Effect-poxicle_kwin]</code> group — which the runtime reader no longer consults. The supported editor is therefore the standalone <a href="configurator.gen.html">GTK4 configurator</a> (<code>poxicle-config</code>), which writes the neutral file the effect actually reads; the KCM remains as the in-Settings entry point and a path for migrating older setups.</p>
+
+<p>Because the plugin is loaded into the running compositor, recompiled effect or engine code does <strong>not</strong> hot-reload — applying it requires a real KWin restart (log out / log back in on Wayland). Palette and rule edits from the configurator <em>do</em> apply live, via the D-Bus reconfigure. During development the effect is iterated in a nested <code>kwin_wayland</code> via <code>run-nested.sh</code> (and <code>run-nested-chiguiro.sh</code>, which launches Chiguiro with <code>KGX_POXICLE=compositor</code> to drive the stream path).</p>
+
+<h2 id="10-design-rules">10. Design rules</h2>
+
+<ul>
+<li><strong>Compile the engine in; own the context.</strong> KWin provides the surface and GL context, so the effect links the engine directly and feeds the renderer KWin&rsquo;s projection — a BYOC host.</li>
+<li><strong>Draw per window, after its content.</strong> Per-window passes give correct occlusion by windows stacked above and let each ring be repainted independently.</li>
+<li><strong>Damage the ring, not the window.</strong> Four thin edge strips avoid forcing a full-stack recomposite behind a translucent window — the dominant overdraw cost.</li>
+<li><strong>Park when quiet.</strong> <code>m_active</code> and <code>isActive()</code> let KWin stop repainting, and drop the effect, when no engine is animating.</li>
+<li><strong>Restore GL state.</strong> poxicle-gl never restores; the effect brackets every renderer call by saving and restoring program, VAO, buffers, and blend.</li>
+<li><strong>Hold through warps.</strong> A per-window grace keyed on minimize/restore signals keeps rings from snapping in mid-animation.</li>
+</ul>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle — Build, Install & Packaging</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="poxicle--build-install--packaging">poxicle — Build, Install &amp; Packaging</h1>
+
+<p>This page documents how poxicle is built and installed: the Meson engine and demos, the opt-in configurator and GObject binding, the separate CMake/ECM build for the KWin effect, the sanitizer setup, and the per-component install scripts.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-the-shape-of-the-build">The shape of the build</a></li>
+<li><a href="#2-the-meson-engine-and-demos">The Meson engine and demos</a></li>
+<li><a href="#3-the-gobject-introspection-binding">The GObject-Introspection binding</a></li>
+<li><a href="#4-the-kwin-effect-cmakeecm">The KWin effect (CMake/ECM)</a></li>
+<li><a href="#5-install-scripts">Install scripts</a></li>
+<li><a href="#6-the-demos">The demos</a></li>
+<li><a href="#7-sanitizers">Sanitizers</a></li>
+<li><a href="#8-toolchain">Toolchain</a></li>
+<li><a href="#9-design-rules">Design rules</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-the-shape-of-the-build">1. The shape of the build</h2>
+
+<p>poxicle is one engine plus three integrations, and it uses two build systems because KDE mandates CMake/ECM for a KWin effect while everything else is Meson. There is <strong>no installed <code>libpoxicle</code></strong>: the engine is small, dependency-free C, so each consumer compiles it straight from <code>src/</code> and ships it inside itself.</p>
+
+<table>
+<thead>
+<tr>
+<th> Component </th>
+<th> Build system </th>
+<th> Command </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> Engine + demos </td>
+<td> Meson </td>
+<td> <code>meson setup build &amp;&amp; meson compile -C build</code> </td>
+</tr>
+<tr>
+<td> GTK4 configurator </td>
+<td> Meson (<code>-Dconfigurator=true</code>) </td>
+<td> adds <code>poxicle-config</code> </td>
+</tr>
+<tr>
+<td> GObject binding + typelib </td>
+<td> Meson (<code>-Dintrospection=true</code>) </td>
+<td> adds <code>libpoxicle-gobject</code> + <code>Poxicle-1.0.typelib</code> </td>
+</tr>
+<tr>
+<td> KWin effect + KCM </td>
+<td> CMake / ECM </td>
+<td> <code>cd kwin &amp;&amp; ./install.sh</code> </td>
+</tr>
+<tr>
+<td> GNOME extension + binding </td>
+<td> Meson + shell </td>
+<td> <code>cd gnome &amp;&amp; ./install.sh</code> </td>
+</tr>
+<tr>
+<td> Everything to <code>/usr</code> </td>
+<td> Meson + CMake </td>
+<td> <code>./install.sh</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<h2 id="2-the-meson-engine-and-demos">2. The Meson engine and demos</h2>
+
+<p>The top-level <code>meson.build</code> (project <code>poxicle</code>, C11, warning level 2, LGPL-3.0-or-later) defines the engine as two static libraries and the demos as two executables. Its dependencies are <code>wayland-client</code>, <code>wayland-egl</code>, <code>egl</code>, <code>glesv2</code>, and optional <code>libm</code>, plus <code>wayland-scanner</code> and <code>wayland-protocols</code> to generate xdg-shell glue for the demos.</p>
+
+<table>
+<thead>
+<tr>
+<th> Target </th>
+<th> Sources </th>
+<th> Links </th>
+<th> Installed </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>libpoxicle</code> (static) </td>
+<td> <code>poxicle.c</code>, <code>poxicle-gl.c</code> </td>
+<td> <code>glesv2</code>, <code>m</code> </td>
+<td> no </td>
+</tr>
+<tr>
+<td> <code>libpoxicle-wl</code> (static) </td>
+<td> <code>poxicle-wl.c</code> </td>
+<td> <code>libpoxicle</code> + wayland/egl </td>
+<td> no </td>
+</tr>
+<tr>
+<td> <code>poxicle-demo</code> </td>
+<td> <code>demo/main.c</code> </td>
+<td> <code>libpoxicle</code> </td>
+<td> no </td>
+</tr>
+<tr>
+<td> <code>poxicle-host</code> </td>
+<td> <code>demo/host.c</code> </td>
+<td> <code>libpoxicle-wl</code> + <code>libpoxicle</code> </td>
+<td> no </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The core library carries <strong>only</strong> the <a href="simulation-core.gen.html">simulation core</a> and the <a href="renderer.gen.html">GLES renderer</a> — it needs nothing but a GL context, so it stays embeddable anywhere. The <a href="wayland-backend.gen.html">Wayland subsurface backend</a> is a separate static lib that pulls in the windowing stack, kept out of the core on purpose. The build also declares <code>poxicle</code> / <code>poxicle-wl</code> as consumable Meson dependencies (<code>meson.override_dependency</code>), so an embedder like Chiguiro can pull poxicle in by name as a subproject. Only xdg-shell is generated from the system protocol description, and only the demos consume it; the libraries don&rsquo;t.</p>
+
+<h2 id="3-the-gobject-introspection-binding">3. The GObject-Introspection binding</h2>
+
+<p>Behind <code>-Dintrospection=true</code> (default off), the build adds the <a href="gobject-binding.gen.html">GObject binding</a>: a <strong>shared</strong> library <code>libpoxicle-gobject</code> (from <code>poxicle.c</code> + <code>pox-gobject.c</code>, pulling in <code>gobject-2.0</code>), and a <code>Poxicle-1.0</code> typelib generated by <code>gnome.generate_gir</code> — namespace <code>Poxicle</code>, version <code>1.0</code>, identifier prefix <code>Poxicle</code>, symbol prefix <code>poxicle</code>. This is the only target that links GObject; the core stays clean.</p>
+
+<p>Installed to a system prefix (default <code>/usr</code>), the binding lands where gjs and Python find it:</p>
+
+<table>
+<thead>
+<tr>
+<th> Artifact </th>
+<th> Path </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>libpoxicle-gobject.so</code> </td>
+<td> <code>/usr/lib/</code> </td>
+</tr>
+<tr>
+<td> <code>Poxicle-1.0.gir</code> </td>
+<td> <code>/usr/share/gir-1.0/</code> </td>
+</tr>
+<tr>
+<td> <code>Poxicle-1.0.typelib</code> </td>
+<td> <code>/usr/lib/girepository-1.0/</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>That last path is what makes <code>import Pox from 'gi://Poxicle'</code> resolve at runtime with no hard-coded path in the extension.</p>
+
+<h2 id="4-the-kwin-effect-cmakeecm">4. The KWin effect (CMake/ECM)</h2>
+
+<p>The <a href="kwin-effect.gen.html">KWin effect</a> is a separate CMake project (<code>kwin/CMakeLists.txt</code>, C++20 / C11, <code>AUTOMOC</code>). It pins <code>QT_DEFAULT_MAJOR_VERSION 6</code> before any <code>find_package</code>, then requires ECM, Qt6 (Core, Gui, Widgets, DBus, OpenGL, Qml, Quick), KF6 (CoreAddons, Config, KCMUtils, I18n), <code>epoxy</code>, <code>glesv2</code>, and <code>KWin</code>. It builds two plugins and one test tool:</p>
+
+<table>
+<thead>
+<tr>
+<th> Target </th>
+<th> Kind </th>
+<th> Installed to </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>poxicle_kwin</code> </td>
+<td> the effect </td>
+<td> <code>kwin/effects/plugins</code> </td>
+</tr>
+<tr>
+<td> <code>kwin_poxicle_config</code> </td>
+<td> the Configure KCM </td>
+<td> <code>kwin/effects/configs</code> </td>
+</tr>
+<tr>
+<td> <code>poxbridge-test</code> </td>
+<td> a standalone stream producer (dev only) </td>
+<td> not installed </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The effect compiles the engine <strong>straight from <code>../src</code></strong> — <code>poxicle.c</code> + <code>poxicle-gl.c</code>, no <code>poxicle-wl</code> — because KWin owns the surface and GL context. Two ECM-integration quirks are worth knowing: <code>epoxy</code> must come through ECM&rsquo;s <code>find_package(epoxy)</code> (a <code>pkg_check_modules</code> with prefix <code>epoxy</code> collides with KWin&rsquo;s transitive find), and <code>glesv2</code> is brought in under a private <code>PC_</code> prefix to avoid the same namespace clash.</p>
+
+<h2 id="5-install-scripts">5. Install scripts</h2>
+
+<p>Three scripts cover the three install shapes:</p>
+
+<ul>
+<li><strong><code>./install.sh</code></strong> (top level) installs the engine, the configurator, and the KWin effect + KCM to <code>/usr</code> in one shot — Meson for <code>poxicle-config</code>, CMake for the effect. It <strong>always does a clean build</strong> (<code>rm -rf build-install kwin/build-install</code> first): the KWin effect bakes the compositor&rsquo;s effect-API version into its plugin-factory IID, and an incremental rebuild after a KWin update can silently reinstall a plugin that names the <em>old</em> KWin, which the new KWin then refuses to load. Wiping is the only reliable cure. It forces <code>-DKDE_INSTALL_PLUGINDIR=lib/qt6/plugins</code> (the default can resolve to <code>lib/qt/plugins</code>, which KWin never scans), removes stale copies from the old path, and runs <code>kbuildsycoca6</code>.</li>
+<li><strong><code>kwin/install.sh</code></strong> installs only the effect, into a dedicated <code>build-install</code> dir so it doesn&rsquo;t disturb the nested-KWin dev build, with the same plugin-dir flag and cache refresh.</li>
+<li><strong><code>gnome/install.sh</code></strong> installs the GI binding to the system prefix (so gjs finds <code>gi://Poxicle</code>) and symlinks the extension into <code>~/.local/share/gnome-shell/extensions/</code>, then enables it.</li>
+</ul>
+
+
+<p>The installed footprint is <code>/usr/bin/poxicle-config</code>, <code>/usr/lib/qt6/plugins/kwin/effects/{plugins/poxicle_kwin.so, configs/kwin_poxicle_config.so}</code>, and the binding artifacts above. Neither compositor effect hot-reloads recompiled code: applying new effect, engine, or extension code requires a real session restart (log out / log back in on Wayland), though palette and rule edits from the configurator apply live via the KWin reconfigure / the GNOME file monitor.</p>
+
+<h2 id="6-the-demos">6. The demos</h2>
+
+<p>Two demos prove the two ways to host the engine, both built by default (<code>-Ddemos=true</code>):</p>
+
+<ul>
+<li><strong><code>poxicle-demo</code></strong> (<code>demo/main.c</code>) is the standalone path: a transparent Wayland/EGL window that owns its surface, EGL context, and frame loop, drives <a href="simulation-core.gen.html"><code>pox_engine_tick</code></a>, and draws with <a href="renderer.gen.html"><code>pox_gl_render</code></a> — no rendering code of its own.</li>
+<li><strong><code>poxicle-host</code></strong> (<code>demo/host.c</code>) is the <a href="wayland-backend.gen.html">subsurface backend</a> path: a plain opaque <code>wl_shm</code> window standing in for &ldquo;some app&rsquo;s content,&rdquo; with a poxicle overlay riding on a subsurface above it via <code>pox_wl_new</code>. It includes no EGL/GL headers at all — the context lives inside the backend — proving the embedding path is transparent and click-through and animates independently.</li>
+</ul>
+
+
+<h2 id="7-sanitizers">7. Sanitizers</h2>
+
+<p>The engine is meant to be developed under AddressSanitizer + UndefinedBehaviorSanitizer. Because consumers may link poxicle statically into a non-sanitized binary, the sanitizer coverage lives here, where the demos link the runtimes directly:</p>
+
+<pre><code class="language-bash code-block">
+meson setup build-asan -Db_sanitize=address,undefined
+meson compile -C build-asan
+
+LSAN_OPTIONS=suppressions=lsan.supp \
+ASAN_OPTIONS=abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+  build-asan/poxicle-host
+</code></pre>
+
+
+<p><code>lsan.supp</code> filters out Mesa&rsquo;s EGL/GL driver leaks — process-lifetime driver state allocated during context setup that appears under the backend&rsquo;s <code>egl_setup()</code> but belongs entirely to the driver — so genuine poxicle leaks stand out. It suppresses the EGL/GLX loaders (<code>libEGL_mesa</code>, <code>libGLX_mesa</code>), the Gallium/DRI drivers (<code>iris_dri</code>, <code>libgallium</code>, <code>swrast_dri</code>, <code>radeonsi</code>, <code>libglapi</code>), and the GLVND dispatch (<code>libglvnd</code>, <code>libGLdispatch</code>).</p>
+
+<h2 id="8-toolchain">8. Toolchain</h2>
+
+<p>The engine is verified against wayland-client 1.25, wayland-egl 18.1, EGL 1.5, GLES 3.2 (<code>glesv2</code>), wayland-scanner and Meson, on Mesa with an Intel Iris Plus GPU. The language is plain C, FFI-friendly for any consumer. The integrations layer on their own requirements: the KWin effect needs KWin/Plasma 6 (6.6.5+), Qt6, KF6, ECM and epoxy; the GObject binding needs <code>gobject-2.0</code> + gobject-introspection; the configurator needs GTK4 + libadwaita-1; the GNOME extension needs GNOME Shell 50.</p>
+
+<p>The wider integration story — how the Chiguiro terminal uses poxicle both as an in-app subsurface overlay and as a <a href="poxbridge.gen.html">bridge producer</a> streaming to the KWin effect — is captured in the repo&rsquo;s <code>docs/chiguiro-compositor-handoff.md</code>.</p>
+
+<h2 id="9-design-rules">9. Design rules</h2>
+
+<ul>
+<li><strong>Two build systems, on purpose.</strong> KDE mandates CMake/ECM for a KWin effect; the engine, demos, configurator and binding are Meson. They meet only at the shared <code>src/</code>.</li>
+<li><strong>No shipped library.</strong> The engine is compiled into each consumer from <code>src/</code>, so there is no <code>libpoxicle</code> to version-skew against.</li>
+<li><strong>The core pulls nothing.</strong> Only the opt-in targets add Wayland, GObject, GTK, or KWin; the static core links just GLES and libm.</li>
+<li><strong>Clean-build the effect.</strong> The effect&rsquo;s IID is tied to KWin&rsquo;s API version, so installs wipe and rebuild to avoid shipping a plugin that names a stale compositor.</li>
+<li><strong>Sanitize where it links.</strong> ASAN/UBSAN coverage lives in poxicle&rsquo;s own build because consumers may link it un-sanitized; <code>lsan.supp</code> keeps Mesa&rsquo;s driver leaks out of the signal.</li>
+</ul>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

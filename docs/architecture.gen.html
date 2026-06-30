@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle — Architecture Overview</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="poxicle--architecture-overview">poxicle — Architecture Overview</h1>
+
+<p>This page is the system map for poxicle: a toolkit- and desktop-agnostic edge-particle engine that simulates in pure C, draws in one GLES call, and rides on any surface through opt-in backends — with compositor effects and a configurator built on the same core.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-what-poxicle-is">What poxicle is</a></li>
+<li><a href="#2-the-core-idea-a-current-gl-context-is-all-you-need">The core idea: a current GL context is all you need</a></li>
+<li><a href="#3-layer-model">Layer model</a></li>
+<li><a href="#4-the-data-hand-off">The data hand-off</a></li>
+<li><a href="#5-backends-giving-the-engine-a-surface">Backends: giving the engine a surface</a></li>
+<li><a href="#6-consumers-in-the-wild">Consumers in the wild</a></li>
+<li><a href="#7-the-one-config-file">The one config file</a></li>
+<li><a href="#8-source-layout">Source layout</a></li>
+<li><a href="#9-design-rules">Design rules</a></li>
+<li><a href="#10-document-index">Document index</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-what-poxicle-is">1. What poxicle is</h2>
+
+<p>poxicle is a small, fast particle engine that draws high-quality animated effects around the <strong>edges of a surface</strong> — bursts, tails, pulses, beams, ambient shimmer. It was extracted from the Chiguiro terminal&rsquo;s edge engine and made standalone, with its <strong>own GPU renderer</strong> — no GSK, no Cairo, no host toolkit involvement.</p>
+
+<p>The whole engine is plain C, deliberately FFI-friendly. The reusable part needs nothing but a live OpenGL ES 3 context; everything environment-specific — how a surface or window gets created — is an opt-in backend you can ignore. That is what keeps it usable from any toolkit, any desktop, and even outside a desktop entirely (a game engine, a custom GL app). On top of that core sit three real integrations that all ride the same simulation: a <a href="kwin-effect.gen.html">KWin Plasma 6 effect</a>, a <a href="gnome-extension.gen.html">GNOME Shell extension</a>, and a <a href="configurator.gen.html">GTK4 configurator</a>.</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 980 640" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg      { fill: #1a1b26; }
+    .layer-c { fill: #1a2a1a; stroke: #9ece6a; stroke-width: 1.5; }
+    .layer-r { fill: #1a2235; stroke: #7aa2f7; stroke-width: 1.5; }
+    .layer-b { fill: #2a1f35; stroke: #bb9af7; stroke-width: 1.5; }
+    .layer-x { fill: #16242b; stroke: #7dcfff; stroke-width: 1.5; }
+    .box     { fill: #24283b; stroke: #3b4261; stroke-width: 1; }
+    .box-hot { fill: #2a2438; stroke: #e0af68; stroke-width: 1.5; }
+    .lbl     { fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm  { fill: #c0caf5; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut { fill: #a9b1d6; font-size: 9px;  font-family: 'JetBrains Mono', monospace; }
+    .lbl-grn { fill: #9ece6a; font-size: 12px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-blu { fill: #7aa2f7; font-size: 12px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-pur { fill: #bb9af7; font-size: 12px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-cy  { fill: #7dcfff; font-size: 12px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-yel { fill: #e0af68; font-size: 10px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .ln      { stroke: #7dcfff; stroke-width: 1.5; fill: none; }
+    .bound   { stroke: #6b7398; stroke-width: 1.2; stroke-dasharray: 6,4; fill: none; }
+    .title   { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+  </style>
+
+  <rect x="0" y="0" width="980" height="640" class="bg" rx="6"/>
+  <text x="490" y="26" text-anchor="middle" class="title">poxicle layer architecture</text>
+
+  <!-- Core -->
+  <rect x="20" y="44" width="940" height="92" class="layer-c" rx="6"/>
+  <text x="40" y="64" class="lbl-grn">poxicle-core  --  pure-C simulation (zero deps: no GL, no Wayland, no toolkit)</text>
+  <text x="40" y="78" class="lbl-mut">perimeter, envelopes, presets, palettes, bursts, geometric kinds, idle governor</text>
+  <rect x="40"  y="88" width="280" height="38" class="box" rx="6"/>
+  <text x="180" y="111" text-anchor="middle" class="lbl-sm">pox_engine_tick(dt) -> PoxInstance[]</text>
+  <rect x="332" y="88" width="300" height="38" class="box" rx="6"/>
+  <text x="482" y="107" text-anchor="middle" class="lbl-sm">presets + palettes (single source of truth)</text>
+  <text x="482" y="120" text-anchor="middle" class="lbl-mut">pox_preset_* / pox_palette_*</text>
+  <rect x="644" y="88" width="296" height="38" class="box" rx="6"/>
+  <text x="792" y="107" text-anchor="middle" class="lbl-sm">pox_engine_active() — idle parking</text>
+  <text x="792" y="120" text-anchor="middle" class="lbl-mut">seeded clocks, edge mask, corner radius</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="180" y1="136" x2="180" y2="162" class="ln"/>
+  <text x="192" y="154" class="lbl-mut">PoxInstance[]</text>
+
+  <!-- Renderer -->
+  <rect x="20" y="166" width="460" height="74" class="layer-r" rx="6"/>
+  <text x="40" y="186" class="lbl-blu">poxicle-gl  --  GLES3 instanced / SDF renderer</text>
+  <text x="40" y="200" class="lbl-mut">one glDrawArraysInstanced; shapes are signed-distance fields</text>
+  <rect x="40"  y="208" width="200" height="24" class="box" rx="6"/>
+  <text x="140" y="225" text-anchor="middle" class="lbl-mut">pox_gl_render (owns viewport)</text>
+  <rect x="252" y="208" width="208" height="24" class="box" rx="6"/>
+  <text x="356" y="225" text-anchor="middle" class="lbl-mut">pox_gl_render_mvp (host MVP)</text>
+
+  <!-- Bridge -->
+  <rect x="500" y="166" width="460" height="74" class="layer-x" rx="6"/>
+  <text x="520" y="186" class="lbl-cy">poxbridge  --  cross-process producer/receiver channel</text>
+  <text x="520" y="200" class="lbl-mut">memfd shared region + seqlock; D-Bus org.ninez.PoxicleBridge</text>
+  <rect x="520" y="208" width="420" height="24" class="box" rx="6"/>
+  <text x="730" y="225" text-anchor="middle" class="lbl-mut">a client sims + streams instances; a receiver positions + draws them</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="250" y1="240" x2="250" y2="286" class="ln"/>
+
+  <!-- Backends -->
+  <rect x="20" y="290" width="940" height="86" class="layer-b" rx="6"/>
+  <text x="40" y="310" class="lbl-pur">backends  --  give the core a surface + a current GL context (opt-in, each a thin unit)</text>
+  <rect x="40"  y="320" width="290" height="46" class="box-hot" rx="6"/>
+  <text x="185" y="339" text-anchor="middle" class="lbl-yel">poxicle-wl  (subsurface host)</text>
+  <text x="185" y="356" text-anchor="middle" class="lbl-mut">transparent, click-through, own EGL ctx</text>
+  <rect x="342" y="320" width="290" height="46" class="box" rx="6"/>
+  <text x="487" y="339" text-anchor="middle" class="lbl-sm">BYOC  (bring your own context)</text>
+  <text x="487" y="356" text-anchor="middle" class="lbl-mut">host calls pox_gl_render in its own frame</text>
+  <rect x="644" y="320" width="296" height="46" class="box" rx="6"/>
+  <text x="792" y="339" text-anchor="middle" class="lbl-sm">gi://Poxicle  (GObject binding)</text>
+  <text x="792" y="356" text-anchor="middle" class="lbl-mut">tick_vertices -> GPU-ready blob for gjs</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="20" y1="392" x2="960" y2="392" class="bound"/>
+  <text x="490" y="387" text-anchor="middle" class="lbl-yel">consumers ride one of the backends above</text>
+
+  <!-- Consumers -->
+  <rect x="20" y="408" width="940" height="120" class="layer-x" rx="6"/>
+  <text x="40" y="428" class="lbl-cy">consumers</text>
+  <rect x="40"  y="438" width="220" height="80" class="box" rx="6"/>
+  <text x="150" y="458" text-anchor="middle" class="lbl-sm">KWin Plasma 6 effect</text>
+  <text x="150" y="476" text-anchor="middle" class="lbl-mut">BYOC: engine compiled in,</text>
+  <text x="150" y="489" text-anchor="middle" class="lbl-mut">draws per window via KWin MVP,</text>
+  <text x="150" y="502" text-anchor="middle" class="lbl-mut">poxbridge receiver + KCM</text>
+
+  <rect x="272" y="438" width="220" height="80" class="box" rx="6"/>
+  <text x="382" y="458" text-anchor="middle" class="lbl-sm">GNOME Shell extension</text>
+  <text x="382" y="476" text-anchor="middle" class="lbl-mut">gi://Poxicle in gjs,</text>
+  <text x="382" y="489" text-anchor="middle" class="lbl-mut">Cogl actor draws the blob,</text>
+  <text x="382" y="502" text-anchor="middle" class="lbl-mut">poxbridge receiver</text>
+
+  <rect x="504" y="438" width="220" height="80" class="box" rx="6"/>
+  <text x="614" y="458" text-anchor="middle" class="lbl-sm">Chiguiro terminal</text>
+  <text x="614" y="476" text-anchor="middle" class="lbl-mut">in-app poxicle-wl overlay,</text>
+  <text x="614" y="489" text-anchor="middle" class="lbl-mut">or poxbridge producer</text>
+  <text x="614" y="502" text-anchor="middle" class="lbl-mut">streaming to the effect</text>
+
+  <rect x="736" y="438" width="204" height="80" class="box" rx="6"/>
+  <text x="838" y="458" text-anchor="middle" class="lbl-sm">GTK4 configurator</text>
+  <text x="838" y="476" text-anchor="middle" class="lbl-mut">edits presets + rules,</text>
+  <text x="838" y="489" text-anchor="middle" class="lbl-mut">writes the neutral config,</text>
+  <text x="838" y="502" text-anchor="middle" class="lbl-mut">links engine for palettes</text>
+
+  <!-- Config -->
+  <rect x="20" y="548" width="940" height="72" class="layer-c" rx="6"/>
+  <text x="40" y="568" class="lbl-grn">~/.config/poxicle/poxicle.conf  --  one DE-neutral config file (GKeyFile)</text>
+  <text x="40" y="582" class="lbl-mut">written by the configurator; read by the KWin effect and the GNOME extension</text>
+  <rect x="40"  y="590" width="900" height="22" class="box" rx="6"/>
+  <text x="490" y="606" text-anchor="middle" class="lbl-mut">[poxicle]  Preset-* / Rules / Active / Panel / Corner* / UnminimizeGrace</text>
+</svg>
+</div>
+
+
+<h2 id="2-the-core-idea-a-current-gl-context-is-all-you-need">2. The core idea: a current GL context is all you need</h2>
+
+<p>Most &ldquo;draw on a window&rdquo; effects reach into the host toolkit or the window manager. poxicle takes the opposite stance: the reusable engine depends on <strong>nothing but a live OpenGL ES 3 context</strong>. The simulation is pure C with zero dependencies; the renderer needs only a <em>current</em> context and never creates a window or surface of its own. Everything that is environment-specific — how a surface gets created, how it is positioned, how the GPU is woken — is pushed out into an opt-in backend a consumer chooses or ignores.</p>
+
+<p>That single decision is what makes one engine serve a terminal overlay, a KWin compositor effect, a GNOME Shell extension, and a standalone demo. Triggers are generic too: a host fires bursts and beams through the API, and the app-specific wiring (a terminal bell, a process exit) lives in the consumer, never in the library.</p>
+
+<h2 id="3-layer-model">3. Layer model</h2>
+
+<p>poxicle is four layers, each usable on its own:</p>
+
+<table>
+<thead>
+<tr>
+<th> Layer </th>
+<th> Code </th>
+<th> Role </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <strong>poxicle-core</strong> </td>
+<td> <code>src/poxicle.c</code>, <code>include/poxicle.h</code> </td>
+<td> The pure-C <a href="simulation-core.gen.html">simulation</a>: perimeter math, envelopes, presets, palettes, burst scheduling, geometric kinds, the idle governor. Emits <code>PoxInstance[]</code>. </td>
+</tr>
+<tr>
+<td> <strong>poxicle-gl</strong> </td>
+<td> <code>src/poxicle-gl.c</code>, <code>include/poxicle-gl.h</code> </td>
+<td> The <a href="renderer.gen.html">GLES3 renderer</a>: one instanced draw, shapes as signed-distance fields, optional embedder MVP. Needs only a current context. </td>
+</tr>
+<tr>
+<td> <strong>poxbridge</strong> </td>
+<td> <code>include/poxbridge.h</code> </td>
+<td> The <a href="poxbridge.gen.html">cross-process channel</a>: a memfd shared region + seqlock + D-Bus, so a producer in another process can stream instances to a receiver. </td>
+</tr>
+<tr>
+<td> <strong>backends</strong> </td>
+<td> <code>poxicle-wl</code>, BYOC, <code>gi://Poxicle</code> </td>
+<td> Opt-in units that <a href="wayland-backend.gen.html">give the core a surface</a> and a context. </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The core and renderer build into one small static library; the Wayland backend, the GObject binding, the configurator and the demos are all separate, opt-in targets (see <a href="build.gen.html">Build, Install &amp; Packaging</a>).</p>
+
+<h2 id="4-the-data-hand-off">4. The data hand-off</h2>
+
+<p>The seam that holds the whole system together is one flat record. The sim&rsquo;s only output is a <code>PoxInstance[]</code> — top-left, size, angle, shape and straight-alpha colour per particle — written by <code>pox_engine_tick(e, dt, out, cap)</code> once per frame. The sim knows nothing about how those particles are drawn or where the surface came from.</p>
+
+<p>That hand-off is what lets the same frame flow three ways: a <a href="renderer.gen.html">renderer</a> points GL attributes straight at the struct fields and draws all instances in one call; the <a href="gobject-binding.gen.html">GObject binding</a> triangulates the instances into a GPU-ready Cogl vertex blob; and a <a href="poxbridge.gen.html">producer</a> streams byte-identical records to a compositor receiver over shared memory. The record is the contract; everything else is interchangeable around it.</p>
+
+<h2 id="5-backends-giving-the-engine-a-surface">5. Backends: giving the engine a surface</h2>
+
+<p>A backend&rsquo;s only job is to hand the core a surface and a current GL context, then drive the frame loop. There are three, each a thin separate unit:</p>
+
+<ul>
+<li><strong>poxicle-wl</strong> — a <a href="wayland-backend.gen.html">Wayland subsurface host</a>. It rides a transparent, click-through, desynchronized <code>wl_subsurface</code> over a window the app already owns, with its own EGL context, using only core Wayland (<code>wl_compositor</code> + <code>wl_subcompositor</code>) so it is DE-agnostic. This is the in-app overlay path.</li>
+<li><strong>BYOC</strong> — &ldquo;bring your own context.&rdquo; The host already has a current GL context and simply calls <code>pox_gl_render(instances)</code> inside its own frame. For X11/GLX apps, engines, or a compositor effect feeding its own projection matrix.</li>
+<li><strong>gi://Poxicle</strong> — the <a href="gobject-binding.gen.html">GObject binding</a>. Not a windowing backend but the language seam: it expands a frame to a GPU-ready vertex blob a gjs consumer uploads and draws, and it owns the bridge-receiver side for GNOME.</li>
+</ul>
+
+
+<p>Why not just draw on other apps' windows directly? Wayland forbids it — a client can only render to its own surfaces and can&rsquo;t read other windows' geometry. The subsurface is the correct equivalent (ride <em>with</em> a host window), and for non-cooperative cases BYOC or the compositor effect is the answer.</p>
+
+<h2 id="6-consumers-in-the-wild">6. Consumers in the wild</h2>
+
+<p>Four programs ride this core today:</p>
+
+<ul>
+<li>The <strong><a href="kwin-effect.gen.html">KWin Plasma 6 effect</a></strong> compiles the engine straight into a compositor plugin and draws a ring per window through KWin&rsquo;s projection matrix — a BYOC host that also owns the poxbridge receiver and a Configure module.</li>
+<li>The <strong><a href="gnome-extension.gen.html">GNOME Shell extension</a></strong> drives the same engine through <code>gi://Poxicle</code> in gjs and draws the vertex blob with a Cogl actor, mirroring the effect&rsquo;s behaviour and owning the bridge receiver on the GNOME side.</li>
+<li>The <strong>Chiguiro terminal</strong> uses poxicle two ways: an in-app <code>poxicle-wl</code> subsurface overlay, or as a <a href="poxbridge.gen.html">poxbridge producer</a> that sims in-process and streams instances to the compositor effect, so KWin does the drawing.</li>
+<li>The <strong><a href="configurator.gen.html">GTK4 configurator</a></strong> edits the presets, per-app rules and targets, links the engine for its palette catalogue, and writes the one config file the renderers read.</li>
+</ul>
+
+
+<h2 id="7-the-one-config-file">7. The one config file</h2>
+
+<p>A user&rsquo;s choices live in a single DE-neutral file, <code>~/.config/poxicle/poxicle.conf</code>, written by the configurator and read by both compositor backends. Because the <a href="configuration.gen.html">preset and palette tables</a> are engine data and the file is plain <code>GKeyFile</code>, a preset, a per-app rule, or a colour means exactly the same thing under KWin and GNOME. The renderers each resolve a window&rsquo;s look the same way — first matching per-app rule, else the focus-following <code>Active</code> target, with the <code>Panel</code> target for the desktop dock — so configuring once configures both.</p>
+
+<h2 id="8-source-layout">8. Source layout</h2>
+
+<table>
+<thead>
+<tr>
+<th> Path </th>
+<th> Purpose </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>src/poxicle.c</code>, <code>include/poxicle.h</code> </td>
+<td> The simulation core </td>
+</tr>
+<tr>
+<td> <code>src/poxicle-gl.c</code>, <code>include/poxicle-gl.h</code> </td>
+<td> The GLES3 renderer </td>
+</tr>
+<tr>
+<td> <code>src/poxicle-wl.c</code>, <code>include/poxicle-wl.h</code> </td>
+<td> The Wayland subsurface backend </td>
+</tr>
+<tr>
+<td> <code>src/pox-gobject.c</code>, <code>include/pox-gobject.h</code> </td>
+<td> The GObject / GObject-Introspection binding </td>
+</tr>
+<tr>
+<td> <code>include/poxbridge.h</code> </td>
+<td> The cross-process bridge protocol </td>
+</tr>
+<tr>
+<td> <code>demo/main.c</code>, <code>demo/host.c</code> </td>
+<td> The standalone and subsurface demos </td>
+</tr>
+<tr>
+<td> <code>kwin/</code> </td>
+<td> The KWin Plasma 6 effect + KCM (CMake/ECM) </td>
+</tr>
+<tr>
+<td> <code>gnome/poxicle@nine7nine.github.com/</code> </td>
+<td> The GNOME Shell extension </td>
+</tr>
+<tr>
+<td> <code>configurator/</code> </td>
+<td> The GTK4 configurator (Meson, opt-in) </td>
+</tr>
+<tr>
+<td> <code>docs/</code> </td>
+<td> These pages, plus the integration handoff notes </td>
+</tr>
+</tbody>
+</table>
+
+
+<h2 id="9-design-rules">9. Design rules</h2>
+
+<p>The architecture holds together because of a few deliberate choices:</p>
+
+<ul>
+<li><strong>The reusable core depends on nothing but a current GL context.</strong> No toolkit, no window manager, no desktop — anything environment-specific is an opt-in backend.</li>
+<li><strong>One flat record is the contract.</strong> The sim emits <code>PoxInstance[]</code> and nothing else; a renderer, a binding, and a cross-process stream all consume the same struct.</li>
+<li><strong>The host owns time and triggers.</strong> The engine never reads a clock and never knows why a burst fired; <code>dt</code> and triggers come from the consumer.</li>
+<li><strong>The look is engine data.</strong> Presets and palettes are one source of truth, so the configurator and every backend render identically.</li>
+<li><strong>One neutral config, two renderers.</strong> A single <code>GKeyFile</code> under <code>~/.config/poxicle/</code> drives both the KWin effect and the GNOME extension.</li>
+<li><strong>Park when quiet.</strong> <code>pox_engine_active()</code>, idle-grace frames, and a <code>Wake</code> edge let every backend sleep the GPU and the compositor when nothing animates.</li>
+<li><strong>Sim where you can, stream when you can&rsquo;t.</strong> A consumer that can run the engine does; one whose triggers a compositor can&rsquo;t observe streams resolved instances over poxbridge instead.</li>
+</ul>
+
+
+<h2 id="10-document-index">10. Document index</h2>
+
+<table>
+<thead>
+<tr>
+<th> Document </th>
+<th> Covers </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <a href="simulation-core.gen.html">The Simulation Core</a> </td>
+<td> Perimeter math, tunables, envelopes, bursts, geometric kinds, the tick loop, seeded clocks </td>
+</tr>
+<tr>
+<td> <a href="renderer.gen.html">The GLES Renderer</a> </td>
+<td> The single instanced draw, SDF shapes, the vertex/fragment shaders, premultiplied blending </td>
+</tr>
+<tr>
+<td> <a href="poxbridge.gen.html">The poxbridge Protocol</a> </td>
+<td> The memfd shared region, the seqlock, the D-Bus control surface, window identity </td>
+</tr>
+<tr>
+<td> <a href="wayland-backend.gen.html">The Wayland Subsurface Backend</a> </td>
+<td> The click-through subsurface, its EGL context, the self-driving loop, external sources, BYOC </td>
+</tr>
+<tr>
+<td> <a href="gobject-binding.gen.html">The GObject Binding</a> </td>
+<td> <code>gi://Poxicle</code>, the two tick outputs, GPU triangulation, the config resolver, the stream receiver </td>
+</tr>
+<tr>
+<td> <a href="configuration.gen.html">Configuration &amp; Presets</a> </td>
+<td> The neutral config schema, the preset and palette catalogues, per-app rules, palette precedence </td>
+</tr>
+<tr>
+<td> <a href="kwin-effect.gen.html">The KWin Plasma 6 Effect</a> </td>
+<td> The 6.7 port, the per-window paint pipeline, ring-only repaint, the grace, the bridge receiver </td>
+</tr>
+<tr>
+<td> <a href="gnome-extension.gen.html">The GNOME Shell Extension</a> </td>
+<td> Driving the engine in gjs, the Cogl actor, the panel ring, minimize gating, config watching </td>
+</tr>
+<tr>
+<td> <a href="configurator.gen.html">The GTK4 Configurator</a> </td>
+<td> The three pages, the rule editor, the custom cells, linking the engine for palettes </td>
+</tr>
+<tr>
+<td> <a href="build.gen.html">Build, Install &amp; Packaging</a> </td>
+<td> The Meson and CMake builds, the GIR typelib, the install scripts, the demos, sanitizers </td>
+</tr>
+</tbody>
+</table>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle — The GObject-Introspection Binding</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="poxicle--the-gobject-introspection-binding">poxicle — The GObject-Introspection Binding</h1>
+
+<p>The binding is <code>src/pox-gobject.c</code> behind <code>include/pox-gobject.h</code>: a thin GObject wrapper that exposes the C engine as the introspected <code>Poxicle</code> namespace, so a language binding — notably the GNOME Shell extension in gjs — drives the <em>same</em> engine the KWin effect links instead of maintaining a separate port.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-what-the-binding-is">What the binding is</a></li>
+<li><a href="#2-the-poxicleengine-object">The PoxicleEngine object</a></li>
+<li><a href="#3-two-tick-outputs-instances-and-vertices">Two tick outputs: instances and vertices</a></li>
+<li><a href="#4-gpu-ready-triangulation">GPU-ready triangulation</a></li>
+<li><a href="#5-config-driven-look-resolved-in-c">Config-driven look, resolved in C</a></li>
+<li><a href="#6-the-stream-receiver">The stream receiver</a></li>
+<li><a href="#7-catalogue-helpers">Catalogue helpers</a></li>
+<li><a href="#8-design-rules">Design rules</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-what-the-binding-is">1. What the binding is</h2>
+
+<p>The core engine is dependency-free C. The binding adds exactly one layer on top — a GObject wrapper — and nothing more, so that any GObject-Introspection consumer can use the engine without a hand-written port. It is introspected as the <strong><code>Poxicle</code></strong> namespace, version <code>1.0</code>; in gjs that is:</p>
+
+<pre><code class="language-js code-block">
+import Pox from 'gi://Poxicle';
+const engine = new Pox.Engine();
+</code></pre>
+
+
+<p>The wrapper is deliberately thin: it owns a <code>PoxEngine</code> and forwards. Most methods are one-line passthroughs to the <a href="simulation-core.gen.html"><code>pox_engine_*</code></a> calls, with <code>g_return_if_fail</code> guards and gobject-introspection annotations. The only substantial logic the binding adds — and the reason it isn&rsquo;t a trivial shim — is the config resolver (§5) and the stream receiver (§6), both of which would otherwise have to be re-implemented in every binding language.</p>
+
+<p>The build produces a shared library <code>libpoxicle-gobject</code> plus a <code>Poxicle-1.0.typelib</code>; see <a href="build.gen.html">Build, Install &amp; Packaging</a> for how it is generated and installed so gjs finds <code>gi://Poxicle</code>.</p>
+
+<h2 id="2-the-poxicleengine-object">2. The PoxicleEngine object</h2>
+
+<p><code>PoxicleEngine</code> is a <code>G_DECLARE_FINAL_TYPE</code> deriving from <code>GObject</code>. It wraps a <code>PoxEngine</code> created in <code>init</code> and freed in <code>finalize</code> (which also detaches any attached stream). The surface, look and clock methods map straight through:</p>
+
+<table>
+<thead>
+<tr>
+<th> Binding method </th>
+<th> Wraps </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>poxicle_engine_set_surface(w, h, scale)</code> </td>
+<td> <code>pox_engine_set_surface</code> </td>
+</tr>
+<tr>
+<td> <code>poxicle_engine_set_corner_radius(top, bottom)</code> </td>
+<td> <code>pox_engine_set_corner_radius</code> </td>
+</tr>
+<tr>
+<td> <code>poxicle_engine_set_seed(seed)</code> </td>
+<td> <code>pox_engine_set_seed</code> </td>
+</tr>
+<tr>
+<td> <code>poxicle_engine_set_edge_mask(top, right, bottom, left)</code> </td>
+<td> <code>pox_engine_set_edge_mask</code> </td>
+</tr>
+<tr>
+<td> <code>poxicle_engine_set_preset(name, reverse)</code> </td>
+<td> <code>pox_preset_tunables</code> + <code>pox_engine_set_kind</code> </td>
+</tr>
+<tr>
+<td> <code>poxicle_engine_set_palette(palette_id)</code> </td>
+<td> <code>pox_engine_set_palette</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><code>set_preset</code> is the convenience the <a href="configuration.gen.html">configurator</a> presets map onto: it copies a named preset&rsquo;s seed tunables, falls back to defaults for an unknown name, and applies the matching emission kind in one call. The corner-radius, seed, and edge-mask methods carry the same semantics as the core — <code>top</code> for the top corners (KDE), <code>bottom</code> for all four (GNOME); a per-object seed so independent rings don&rsquo;t lockstep; an edge mask for surfaces docked to a screen border.</p>
+
+<h2 id="3-two-tick-outputs-instances-and-vertices">3. Two tick outputs: instances and vertices</h2>
+
+<p>The binding exposes two per-frame outputs, both returning a <code>GBytes</code> blob a binding can read without copying structs by hand.</p>
+
+<ul>
+<li><strong><code>poxicle_engine_tick(dt)</code></strong> returns the raw <code>PoxInstance</code> array — 36 bytes per instance, little-endian: <code>float32 x, y, size, angle</code>; <code>int32 shape</code>; <code>float32 r, g, b, a</code>. The instance count is the blob size / 36. This is the literal sim output, for a consumer that wants to draw the instances itself.</li>
+<li><strong><code>poxicle_engine_tick_vertices(dt)</code></strong> returns the frame already <strong>expanded to a GPU-ready vertex blob</strong> — an interleaved <code>CoglVertexP2C4</code> triangle list (<code>float x, y</code> then 4 <em>premultiplied</em> <code>u8 r, g, b, a</code>, a 12-byte stride). The vertex count is the blob size / 12.</li>
+</ul>
+
+
+<p>The GNOME extension uses <code>tick_vertices</code> exclusively, because the alternative — a per-frame, window-sized CPU surface drawn with Cairo — stalled interactive resize. Triangulating in C and handing gjs a blob it can upload straight to a <code>Cogl.AttributeBuffer</code> removes Cairo and the per-frame surface entirely.</p>
+
+<h2 id="4-gpu-ready-triangulation">4. GPU-ready triangulation</h2>
+
+<p><code>instances_to_vertices()</code> is the shared expander that both <code>tick_vertices</code> and the stream reader call, so local-sim and streamed frames emit byte-identical geometry. It triangulates each shape in C:</p>
+
+<table>
+<thead>
+<tr>
+<th> Shape </th>
+<th> Triangulation </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> square / diamond </td>
+<td> two triangles </td>
+</tr>
+<tr>
+<td> triangle (rotated) </td>
+<td> one triangle, rotated by the instance angle </td>
+</tr>
+<tr>
+<td> circle </td>
+<td> a fan of <code>CIRCLE_SEGS = 12</code> triangles </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Each vertex is pushed by <code>push_vert()</code> as 12 bytes: <code>float x, y</code>, then four <code>u8</code> colour components <strong>premultiplied</strong> by alpha (<code>rgb * a * 255</code>). This matches the <a href="renderer.gen.html">renderer&rsquo;s</a> premultiplied output and the Cogl &ldquo;over&rdquo; blend the <a href="gnome-extension.gen.html">extension</a> sets. Invisible particles (<code>color.a &lt;= 0.003</code>) are dropped during expansion.</p>
+
+<h2 id="5-config-driven-look-resolved-in-c">5. Config-driven look, resolved in C</h2>
+
+<p>The GNOME extension and the KWin effect read the <em>same</em> DE-neutral config file, <code>~/.config/poxicle/poxicle.conf</code>. Rather than maintain a second full parser in gjs, the binding resolves and applies the whole look in C, mirroring the KWin effect&rsquo;s <code>poxconfig</code> field-for-field. Two entry points do this:</p>
+
+<ul>
+<li><strong><code>poxicle_engine_apply_config(wm_class)</code></strong> resolves the complete look for a focused window&rsquo;s WM class — its preset, the stored <code>Preset-&lt;name&gt;</code> parameter edits, the per-app override columns, palette and reverse — in one call. The first per-app rule whose appId is a case-insensitive substring of <code>wm_class</code> wins; otherwise the focus-following <code>Active</code> target applies. It also sets global corner rounding from the <code>CornerTop</code> / <code>CornerBottom</code> keys. With no config file yet, it applies the out-of-box ambient look. Returns <code>FALSE</code> when the window should draw nothing (no matching rule, preset <code>none</code>, or an unset target).</li>
+<li><strong><code>poxicle_engine_apply_panel_config()</code></strong> resolves the desktop-panel <code>Panel</code> target — packed exactly like <code>Active</code>. Unlike <code>apply_config</code> it deliberately does <strong>not</strong> read the corner keys: the panel keeps sharp corners. The host sets which edges face the screen interior via <code>set_edge_mask</code>.</li>
+</ul>
+
+
+<p>The full schema these read — the <code>[poxicle]</code> group, the <code>Rules</code> / <code>Active</code> / <code>Panel</code> packing, the percent-unit override columns, the palette precedence — is documented once in <a href="configuration.gen.html">Configuration &amp; Presets</a>. Keeping the resolver in C means every backend honours the same edits with one implementation; the <a href="gnome-extension.gen.html">GNOME extension</a> only <em>watches</em> the file and calls these two methods.</p>
+
+<h2 id="6-the-stream-receiver">6. The stream receiver</h2>
+
+<p>The binding is also the GNOME side of the <a href="poxbridge.gen.html">poxbridge protocol</a>: it can draw a producer&rsquo;s streamed frames instead of running a local sim, so the extension can own <code>org.ninez.PoxicleBridge</code> just like the KWin effect.</p>
+
+<table>
+<thead>
+<tr>
+<th> Method </th>
+<th> Role </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>poxicle_engine_attach_stream(fd)</code> </td>
+<td> <code>mmap</code>s a producer&rsquo;s memfd read-only, validates the <code>PoxBridgeHeader</code> (magic, version, <code>inst_size</code>, size), and takes ownership of the fd (closes it; the mmap outlives it). </td>
+</tr>
+<tr>
+<td> <code>poxicle_engine_read_stream_vertices()</code> </td>
+<td> Reads the latest <em>complete</em> frame via the seqlock and expands it to the same vertex blob as <code>tick_vertices</code>. </td>
+</tr>
+<tr>
+<td> <code>poxicle_engine_detach_stream()</code> </td>
+<td> Unmaps; called automatically on finalize and explicitly when the producer unregisters. </td>
+</tr>
+<tr>
+<td> <code>poxicle_engine_stream_width/height()</code> </td>
+<td> The producer&rsquo;s surface size, for placing the overlay. </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><code>read_stream_vertices</code> returns <code>NULL</code> when no new frame has arrived since the last call (the caller keeps drawing its last blob) and a zero-length blob when a new frame has no live particles (the caller clears). Its seqlock reader retries up to eight times with acquire-ordered atomic loads, skipping odd (mid-write) and unchanged (no new frame) sequences and re-reading after the copy to reject torn frames — the exact discipline the <a href="poxbridge.gen.html">protocol</a> defines.</p>
+
+<h2 id="7-catalogue-helpers">7. Catalogue helpers</h2>
+
+<p>Four namespace-level functions wrap the engine&rsquo;s canonical tables so a binding can list and preview them without an engine instance: <code>poxicle_preset_count()</code> / <code>poxicle_preset_name(id)</code> and <code>poxicle_palette_count()</code> / <code>poxicle_palette_name(id)</code>. They forward straight to the engine&rsquo;s <code>pox_preset_*</code> / <code>pox_palette_*</code> lookups, so a UI that lists presets or palettes always reflects exactly what the engine renders.</p>
+
+<h2 id="8-design-rules">8. Design rules</h2>
+
+<ul>
+<li><strong>One engine, many languages.</strong> The binding adds a GObject layer and nothing else; the core stays dependency-free, and a gjs or Python consumer drives the same C engine the compositor effects link.</li>
+<li><strong>Hand the GPU a blob.</strong> <code>tick_vertices</code> triangulates in C and returns interleaved, premultiplied <code>CoglVertexP2C4</code> vertices, so a binding uploads and draws in one primitive — no Cairo, no per-frame surface.</li>
+<li><strong>Resolve the look in C.</strong> <code>apply_config</code> / <code>apply_panel_config</code> parse the shared neutral config once in C, so every backend honours the same edits without a second parser.</li>
+<li><strong>One expander for both paths.</strong> Local-sim and streamed frames go through <code>instances_to_vertices</code>, guaranteeing byte-identical geometry.</li>
+<li><strong>Be the GNOME bridge receiver too.</strong> The same <code>attach_stream</code> / <code>read_stream_vertices</code> seqlock reader the KWin effect uses lets the extension own <code>org.ninez.PoxicleBridge</code>.</li>
+</ul>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

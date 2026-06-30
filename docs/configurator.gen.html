@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle — The GTK4 Configurator</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="poxicle--the-gtk4-configurator">poxicle — The GTK4 Configurator</h1>
+
+<p>The configurator (<code>configurator/</code>) is a standalone GTK4 / libadwaita app that edits poxicle&rsquo;s look — preset tunables, per-app rules, and the focus/panel targets — and writes the one DE-neutral config file both the KWin effect and the GNOME extension read.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-what-the-configurator-is">What the configurator is</a></li>
+<li><a href="#2-the-window-and-its-three-pages">The window and its three pages</a></li>
+<li><a href="#3-the-presets-page">The Presets page</a></li>
+<li><a href="#4-the-apps-page">The Apps page</a></li>
+<li><a href="#5-the-preferences-page">The Preferences page</a></li>
+<li><a href="#6-custom-cells">Custom cells</a></li>
+<li><a href="#7-how-it-links-the-engine">How it links the engine</a></li>
+<li><a href="#8-design-rules">Design rules</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-what-the-configurator-is">1. What the configurator is</h2>
+
+<p><code>poxicle-config</code> is an <code>AdwApplication</code> with the app id <code>org.ninez.PoxicleConfig</code>. It is the <strong>supported editor</strong> for poxicle&rsquo;s configuration: it writes <code>~/.config/poxicle/poxicle.conf</code>, the neutral file the <a href="configuration.gen.html">renderers consume</a>. Because it stores plain key/value through <code>GKeyFile</code> rather than any KDE tooling, it runs under any desktop — the same binary configures the <a href="kwin-effect.gen.html">KWin effect</a> and the <a href="gnome-extension.gen.html">GNOME extension</a>.</p>
+
+<p>The app forces the dark colour scheme, paints itself in a translucent &ldquo;App-Glass&rdquo; style, and opens at 1200 × 900 — a size chosen so its densest page fits without a scrollbar. On launch it loads and applies the saved appearance, and saves surface as toasts.</p>
+
+<h2 id="2-the-window-and-its-three-pages">2. The window and its three pages</h2>
+
+<p>The window is an <code>AdwApplicationWindow</code> titled &ldquo;Poxicle Particles&rdquo;. Its body is an <code>AdwToastOverlay</code> over an <code>AdwViewStack</code> of three pages, switched by an <code>AdwViewSwitcher</code> in the body (the header bar carries a centred title):</p>
+
+<table>
+<thead>
+<tr>
+<th> Page </th>
+<th> Edits </th>
+<th> Writes to </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <strong>Presets</strong> </td>
+<td> the 19 built-in preset tunables </td>
+<td> <code>Preset-&lt;name&gt;</code> keys </td>
+</tr>
+<tr>
+<td> <strong>Apps</strong> </td>
+<td> per-app rules + the Active and Panel targets </td>
+<td> <code>Rules</code>, <code>Active</code>, <code>Panel</code>, <code>DefaultPreset</code> </td>
+</tr>
+<tr>
+<td> <strong>Preferences</strong> </td>
+<td> window appearance + a few effect-behaviour settings </td>
+<td> <code>[Configurator]</code> group + <code>CornerTop</code>/<code>CornerBottom</code>/<code>UnminimizeGrace</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>All the values these pages read and write are described in <a href="configuration.gen.html">Configuration &amp; Presets</a>; this page covers the UI that produces them.</p>
+
+<h2 id="3-the-presets-page">3. The Presets page</h2>
+
+<p>The Presets page is the preset editor the KCM lacks: a grid of all <strong>19 presets</strong> (<code>ambient</code> through <code>fireflies</code>), one row each, with 15 columns exposing every <code>PoxTunables</code> field. Numeric fields are slim spin buttons (speed 0.1–8.0, thickness 2–100, tail 0.1–10.0, the pulse and envelope fractions, the thickness envelope); enum fields are flat &ldquo;cycle&rdquo; buttons that step through glyphs — the curve (<code>( / )</code>), release mode (<code>U R S …</code>), shape (<code>■ ● ◆ ▶</code>), and gap. Each row is tinted by a <code>.preset-&lt;name&gt;</code> CSS class so presets read at a glance.</p>
+
+<p>A single <strong>Apply</strong> button saves every preset&rsquo;s 15 fields and then pings KWin to reconfigure. The seed defaults the page starts from are a verbatim copy of the engine&rsquo;s preset table, so an untouched preset writes back exactly the engine&rsquo;s built-in look.</p>
+
+<h2 id="4-the-apps-page">4. The Apps page</h2>
+
+<p>The Apps page edits the per-app <code>Rules</code> list plus the two special targets. It is a <code>GtkListBox</code> of rows, each with 16 columns kept aligned by size groups: <strong>App, Preset, Rev, Color, Shape, Gap, Spd, Thk, Tail, Atk, Rel, Rls, TAtk, TRel, TRls, Palette</strong>.</p>
+
+<ul>
+<li>An ordinary row has a <code>GtkEntry</code> for the app id (matched as a case-insensitive substring of the window class), a preset dropdown, a reverse cycle (<code>▶ ◀ ◆</code> for forward/reverse/loop), a colour button opening a <code>GtkColorDialog</code>, and <strong>dash-spins</strong> for the numeric overrides that render <code>0</code> as &ldquo;—&rdquo; to signal <em>inherit</em>. The enum overrides start at <code>-1</code> (inherit) with a leading &ldquo;—&rdquo; glyph. The palette dropdown previews each built-in as a strip of coloured swatches, with row 0 = &ldquo;Solid&rdquo; (value <code>-1</code>, use the colour) and the rest mapping to palette ids.</li>
+<li>Two <strong>un-removable</strong> rows sit at the top: <strong>★ Active window</strong> (saved to <code>Active</code>, drawn on the focused window) and <strong>▭ Panel</strong> (saved to <code>Panel</code>, the desktop panel edges). They reuse the same column packing minus the app id.</li>
+<li>A top bar provides a &ldquo;New app preset&rdquo; default (saved as <code>DefaultPreset</code>), <strong>Add app</strong>, <strong>Pick window</strong>, and <strong>Remove selected</strong>. <strong>Pick window</strong> calls KWin&rsquo;s <code>queryWindowInfo</code> over D-Bus to grab a clicked window&rsquo;s class — a Wayland-safe way to fill the app id.</li>
+</ul>
+
+
+<p><strong>Apply</strong> collects the rows (dropping empty app ids), saves <code>Rules</code>, <code>Active</code>, <code>Panel</code> and the default preset, then reconfigures. The per-app override ranges are deliberately wide — speed to 800%, tail to 1000% — with <code>0</code> always meaning inherit.</p>
+
+<h2 id="5-the-preferences-page">5. The Preferences page</h2>
+
+<p>The Preferences page has no Apply button; every control applies live and self-persists. It is split in two:</p>
+
+<ul>
+<li><strong>Appearance</strong> → the <code>[Configurator]</code> group: window opacity (0–100), glass colour, and accent colour. These drive the app&rsquo;s own glass styling and nothing the renderers read.</li>
+<li><strong>Effect settings</strong> → the <code>[poxicle]</code> group: top corner radius, bottom corner radius (with tooltips noting KDE rounds top corners and GNOME rounds all four), and the un-minimize grace (0–2000 ms). Each save also pings KWin to reconfigure; the GNOME extension picks the change up through its file monitor.</li>
+</ul>
+
+
+<h2 id="6-custom-cells">6. Custom cells</h2>
+
+<p><code>pox-cells.c</code> supplies the small reusable widgets and the styling that give the app its look. <code>pox_load_css</code> installs the static App-Glass stylesheet — a translucent window, transparent headerbar/toolbar/containers, redefined accent colours, slim borderless spin buttons, flat cycle buttons, opaque popovers, and the per-preset and per-column colour classes. <code>pox_apply_appearance</code> adds a second, higher-priority provider that overrides only the accent colours and the window glass from the saved <code>[Configurator]</code> values, so every rule referencing those colours re-resolves for free. The custom cell factories — <code>pox_spin_new</code> (with optional dash-as-zero), <code>pox_cycle_new</code> (glyph cycling), <code>pox_preset_new</code> (a dropdown over preset names), and <code>pox_palette_new</code> (a dropdown whose rows render swatch strips from the engine&rsquo;s palette colours) — are what the three pages are built from.</p>
+
+<h2 id="7-how-it-links-the-engine">7. How it links the engine</h2>
+
+<p>The configurator&rsquo;s <code>meson.build</code> depends on <code>gtk4</code> and <code>libadwaita-1</code>, and compiles <strong><code>../src/poxicle.c</code> directly into the binary</strong> — but only for the <strong>palette catalogue</strong>. It calls <code>pox_palette_count</code> / <code>pox_palette_name</code> / <code>pox_palette_colors</code> so the palette dropdown shows the exact names and colours the engine renders, with zero duplication. The GL backend is not linked; the configurator never draws particles itself.</p>
+
+<p>Notably, the <strong>preset seed table</strong> is <em>not</em> pulled from the engine at runtime — it is a hand-maintained copy in the configurator&rsquo;s I/O layer, kept in step with the engine&rsquo;s defaults. The build is opt-in (<code>meson setup build -Dconfigurator=true</code>) and installs the binary, a <code>.desktop</code> entry, and an SVG icon (a clean particle square); the desktop file sets <code>StartupWMClass=org.ninez.PoxicleConfig</code> so the compositor maps the window to its icon. See <a href="build.gen.html">Build, Install &amp; Packaging</a>.</p>
+
+<h2 id="8-design-rules">8. Design rules</h2>
+
+<ul>
+<li><strong>Write the neutral file.</strong> The configurator stores plain <code>GKeyFile</code> under <code>~/.config/poxicle/</code>, so one app configures both renderers regardless of desktop.</li>
+<li><strong>Inherit by sentinel in the UI.</strong> Dash-spins render <code>0</code> as &ldquo;—&rdquo; and enum cycles start at <code>-1</code>, surfacing the config&rsquo;s &ldquo;inherit from preset&rdquo; semantics directly in the widgets.</li>
+<li><strong>Pull catalogues from the engine.</strong> Palette names and colours come from the linked engine, so the dropdown always matches what gets drawn.</li>
+<li><strong>Firewall UI styling.</strong> The app&rsquo;s own glass settings live in a <code>[Configurator]</code> group the renderers never read.</li>
+<li><strong>Apply live.</strong> Saves ping KWin to reconfigure, and the GNOME extension watches the file — edits land without a restart.</li>
+</ul>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

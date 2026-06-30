@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle — The GLES Renderer</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="poxicle--the-gles-renderer">poxicle — The GLES Renderer</h1>
+
+<p>The renderer is <code>src/poxicle-gl.c</code> behind <code>include/poxicle-gl.h</code>: a GLES3 backend that consumes the sim&rsquo;s <code>PoxInstance[]</code> and draws every particle in one instanced call, with shapes evaluated as signed-distance fields in the fragment shader.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-what-the-renderer-is">What the renderer is</a></li>
+<li><a href="#2-one-draw-call-for-the-whole-frame">One draw call for the whole frame</a></li>
+<li><a href="#3-instance-attributes-read-straight-from-the-struct">Instance attributes read straight from the struct</a></li>
+<li><a href="#4-the-vertex-shader-per-particle-transforms-on-the-gpu">The vertex shader: per-particle transforms on the GPU</a></li>
+<li><a href="#5-the-fragment-shader-signed-distance-shapes">The fragment shader: signed-distance shapes</a></li>
+<li><a href="#6-premultiplied-blending">Premultiplied blending</a></li>
+<li><a href="#7-two-entry-points-self-contained-vs-embedded">Two entry points: self-contained vs embedded</a></li>
+<li><a href="#8-design-rules">Design rules</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-what-the-renderer-is">1. What the renderer is</h2>
+
+<p><code>pox_gl_*</code> is poxicle&rsquo;s reference renderer: a thin GLES3 backend that turns a frame&rsquo;s <code>PoxInstance[]</code> into pixels. It requires only a <strong>current OpenGL ES 3 context</strong> — it never creates a window, a surface, or a context of its own. That is the property that makes it reusable: the same renderer runs under the <a href="wayland-backend.gen.html">Wayland subsurface backend</a>, a bring-your-own-context host, or a compositor effect that hands it <a href="kwin-effect.gen.html">KWin&rsquo;s projection matrix</a>.</p>
+
+<pre><code class="language-c code-block">
+PoxGL *r = pox_gl_new();                 /* against the CURRENT GLES3 context */
+/* per frame, with a current context: */
+pox_gl_render(r, insts, n, width, height);
+pox_gl_free(r);
+</code></pre>
+
+
+<p><code>pox_gl_new()</code> compiles the shader program and sets up one VAO with two buffers — a static unit quad and a dynamic instance buffer — then returns an opaque <code>PoxGL</code>. It is deliberately small (~215 lines) because almost all the work is the GPU&rsquo;s.</p>
+
+<h2 id="2-one-draw-call-for-the-whole-frame">2. One draw call for the whole frame</h2>
+
+<p>The renderer&rsquo;s defining choice is that <strong>every particle in a frame is drawn by a single <code>glDrawArraysInstanced</code></strong>. There are no per-particle render nodes, no textures, no per-particle state changes, and no per-particle CPU transforms.</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 920 300" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg    { fill: #1a1b26; }
+    .box   { fill: #24283b; stroke: #3b4261; stroke-width: 1; }
+    .box-hot{ fill: #2a2438; stroke: #e0af68; stroke-width: 1.5; }
+    .gpu   { fill: #16242b; stroke: #7dcfff; stroke-width: 1.5; }
+    .lbl   { fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm{ fill: #c0caf5; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut{ fill: #a9b1d6; font-size: 9px;  font-family: 'JetBrains Mono', monospace; }
+    .lbl-cy{ fill: #7dcfff; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-yel{ fill: #e0af68; font-size: 10px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .ln    { stroke: #7dcfff; stroke-width: 1.5; fill: none; }
+    .title { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+  </style>
+  <rect x="0" y="0" width="920" height="300" class="bg" rx="6"/>
+  <text x="460" y="26" text-anchor="middle" class="title">one frame, one instanced draw</text>
+
+  <rect x="20" y="60" width="160" height="70" class="box" rx="6"/>
+  <text x="100" y="88" text-anchor="middle" class="lbl-sm">sim core</text>
+  <text x="100" y="106" text-anchor="middle" class="lbl-mut">pox_engine_tick</text>
+  <text x="100" y="120" text-anchor="middle" class="lbl-mut">-> PoxInstance[n]</text>
+
+  <rect x="230" y="60" width="190" height="70" class="box-hot" rx="6"/>
+  <text x="325" y="84" text-anchor="middle" class="lbl-yel">instance VBO</text>
+  <text x="325" y="102" text-anchor="middle" class="lbl-mut">glBufferSubData: upload the</text>
+  <text x="325" y="116" text-anchor="middle" class="lbl-mut">structs verbatim, no convert</text>
+
+  <rect x="470" y="60" width="190" height="70" class="gpu" rx="6"/>
+  <text x="565" y="84" text-anchor="middle" class="lbl-cy">vertex shader</text>
+  <text x="565" y="102" text-anchor="middle" class="lbl-mut">unit quad x instance:</text>
+  <text x="565" y="116" text-anchor="middle" class="lbl-mut">rotate, scale, place, project</text>
+
+  <rect x="710" y="60" width="190" height="70" class="gpu" rx="6"/>
+  <text x="805" y="84" text-anchor="middle" class="lbl-cy">fragment shader</text>
+  <text x="805" y="102" text-anchor="middle" class="lbl-mut">SDF shape + fwidth AA,</text>
+  <text x="805" y="116" text-anchor="middle" class="lbl-mut">premultiplied output</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="180" y1="95" x2="230" y2="95" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="420" y1="95" x2="470" y2="95" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="660" y1="95" x2="710" y2="95" class="ln"/>
+
+  <rect x="230" y="190" width="670" height="70" class="box" rx="6"/>
+  <text x="565" y="214" text-anchor="middle" class="lbl-yel">glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, n)</text>
+  <text x="565" y="234" text-anchor="middle" class="lbl-mut">4 quad vertices x n instances — the CPU issues exactly one draw per frame</text>
+  <text x="565" y="250" text-anchor="middle" class="lbl-mut">no textures, no per-particle nodes, no per-particle state changes</text>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="565" y1="130" x2="565" y2="190" class="ln"/>
+</svg>
+</div>
+
+
+<p>The CPU&rsquo;s entire per-frame job is to run the sim and upload one tight instance buffer; the GPU does every per-particle transform. This is why poxicle is fast even with hundreds of simultaneous particles — the cost scales with one buffer upload and one draw, not with particle count on the CPU side.</p>
+
+<h2 id="3-instance-attributes-read-straight-from-the-struct">3. Instance attributes read straight from the struct</h2>
+
+<p>The instance buffer is the <code>PoxInstance[]</code> array itself, uploaded with no staging or conversion. The vertex array binds five <strong>instanced</strong> attributes (divisor 1) directly at the struct&rsquo;s field offsets, plus one <strong>per-vertex</strong> attribute (divisor 0) for the unit quad corner:</p>
+
+<table>
+<thead>
+<tr>
+<th> Location </th>
+<th> Attribute </th>
+<th> Source </th>
+<th> Divisor </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> 0 </td>
+<td> <code>a_corner</code> (vec2) </td>
+<td> static unit quad <code>[-0.5, 0.5]</code> </td>
+<td> 0 (per vertex) </td>
+</tr>
+<tr>
+<td> 1 </td>
+<td> <code>i_pos</code> (vec2) </td>
+<td> <code>offsetof(PoxInstance, x)</code> </td>
+<td> 1 (per instance) </td>
+</tr>
+<tr>
+<td> 2 </td>
+<td> <code>i_size</code> (float) </td>
+<td> <code>offsetof(PoxInstance, size)</code> </td>
+<td> 1 </td>
+</tr>
+<tr>
+<td> 3 </td>
+<td> <code>i_angle</code> (float) </td>
+<td> <code>offsetof(PoxInstance, angle)</code> </td>
+<td> 1 </td>
+</tr>
+<tr>
+<td> 4 </td>
+<td> <code>i_color</code> (vec4) </td>
+<td> <code>offsetof(PoxInstance, color)</code> </td>
+<td> 1 </td>
+</tr>
+<tr>
+<td> 5 </td>
+<td> <code>i_shape</code> (int) </td>
+<td> <code>offsetof(PoxInstance, shape)</code> </td>
+<td> 1 </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The <code>shape</code> enum is read as a genuine integer attribute via <code>glVertexAttribIPointer</code>. Because the GL attributes alias the C struct fields, the upload is a straight <code>memcpy</code> into the VBO — the buffer grows with <code>glBufferData</code> only when a frame needs more capacity than before, and otherwise reuses the allocation with <code>glBufferSubData</code>.</p>
+
+<h2 id="4-the-vertex-shader-per-particle-transforms-on-the-gpu">4. The vertex shader: per-particle transforms on the GPU</h2>
+
+<p>Each of the four quad corners is expanded into a particle entirely in the vertex shader. It rotates the unit corner by the instance angle, scales it by <code>i_size</code>, places it at the instance&rsquo;s centre (<code>i_pos + size/2</code>), and projects through a single <code>u_mvp</code> matrix:</p>
+
+<pre><code class="language-glsl code-block">
+float a = radians(i_angle);
+mat2  R = mat2(cos(a), sin(a), -sin(a), cos(a));
+vec2  center = i_pos + vec2(i_size * 0.5);
+vec2  world  = center + R * (a_corner * i_size);
+gl_Position  = u_mvp * vec4(world, 0.0, 1.0);
+</code></pre>
+
+
+<p>The corner position <code>a_corner</code> is passed through as <code>v_local</code> (the local <code>[-0.5, 0.5]</code> coordinate) so the fragment shader can evaluate a shape distance, and <code>i_color</code> / <code>i_shape</code> are passed through (the shape <code>flat</code>, since it must not interpolate). No CPU code ever computes a particle&rsquo;s screen position; the host only supplies the projection.</p>
+
+<h2 id="5-the-fragment-shader-signed-distance-shapes">5. The fragment shader: signed-distance shapes</h2>
+
+<p>Shapes are <strong>signed-distance fields</strong> evaluated per fragment, which is what keeps them crisp at any size, scale, or rotation — there is no texture to soften at large sizes. Each shape is one closed-form distance over the local coordinate:</p>
+
+<table>
+<thead>
+<tr>
+<th> <code>shape</code> </th>
+<th> Distance field </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>0</code> square </td>
+<td> <code>max(|p.x|, |p.y|) - 0.5</code> </td>
+</tr>
+<tr>
+<td> <code>1</code> circle </td>
+<td> <code>length(p) - 0.5</code> </td>
+</tr>
+<tr>
+<td> <code>2</code> diamond </td>
+<td> <code>|p.x| + |p.y| - 0.5</code> </td>
+</tr>
+<tr>
+<td> <code>3</code> triangle </td>
+<td> <code>max</code> of three edge half-planes (<code>A</code>, <code>B</code>, <code>C</code>) </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The distance <code>d</code> is turned into coverage with analytic anti-aliasing: <code>aa = fwidth(d)</code> measures how fast the distance changes across one pixel, and <code>cov = 1 - smoothstep(-aa, aa, d)</code> gives a perfectly smooth one-pixel edge at any zoom. The output is written <strong>premultiplied</strong>:</p>
+
+<pre><code class="language-glsl code-block">
+float cov = 1.0 - smoothstep(-aa, aa, d);
+frag = vec4(v_color.rgb * v_color.a * cov, v_color.a * cov);
+</code></pre>
+
+
+<p>Because the antialiasing is derivative-based rather than a fixed texture, a 6 px firefly and a 60 px comet head are equally sharp, and a rotated triangle has no jaggies.</p>
+
+<h2 id="6-premultiplied-blending">6. Premultiplied blending</h2>
+
+<p>The renderer sets <code>glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)</code> — the standard premultiplied-alpha &ldquo;over&rdquo; operator — to match the premultiplied fragment output above. The sim emits <em>straight</em> alpha in <code>PoxColor</code>; the fragment shader is the single place that premultiplies (<code>rgb * a * cov</code>). This pairing gives correct compositing of overlapping translucent particles and clean glow without halos, and it is the same blend math every backend reproduces: the <a href="gobject-binding.gen.html">GObject binding</a> premultiplies into its Cogl vertices, and the <a href="gnome-extension.gen.html">GNOME extension</a> sets the matching Cogl blend string.</p>
+
+<p>The renderer <strong>never clears</strong> the framebuffer — clearing is the caller&rsquo;s responsibility. A self-contained host clears to transparent first; a bring-your-own-context host keeps its existing scene and draws particles over it.</p>
+
+<h2 id="7-two-entry-points-self-contained-vs-embedded">7. Two entry points: self-contained vs embedded</h2>
+
+<p>The renderer exposes two draw functions that share one inner path; they differ only in who owns the viewport and the projection.</p>
+
+<table>
+<thead>
+<tr>
+<th> Function </th>
+<th> Owns viewport? </th>
+<th> Projection </th>
+<th> Used by </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>pox_gl_render(r, insts, n, w, h)</code> </td>
+<td> yes — sets <code>glViewport(0,0,w,h)</code> </td>
+<td> a built-in ortho mapping top-left-origin pixels straight to clip space </td>
+<td> the <a href="wayland-backend.gen.html">Wayland backend</a>, the demos, any BYOC host that thinks in surface pixels </td>
+</tr>
+<tr>
+<td> <code>pox_gl_render_mvp(r, insts, n, mvp[16])</code> </td>
+<td> no </td>
+<td> caller-supplied column-major matrix; particle coords are interpreted in whatever space it maps from </td>
+<td> the <a href="kwin-effect.gen.html">KWin effect</a>, feeding <code>RenderViewport::projectionMatrix()</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The built-in ortho that <code>pox_gl_render</code> bakes in maps <code>(0..w, 0..h)</code> with y pointing down straight to clip space — exactly the convention the sim emits in. The <code>_mvp</code> variant exists for embedders that draw inside their own GL frame with their own projection, viewport, and scale handling (a compositor working in logical coordinates while the projection applies device scale). Both ultimately call the same <code>pox_gl_render_common</code>, which enables the premultiplied blend, binds the program and VAO, uploads, and issues the one draw.</p>
+
+<h2 id="8-design-rules">8. Design rules</h2>
+
+<ul>
+<li><strong>One draw call per frame.</strong> All particles go through a single <code>glDrawArraysInstanced</code>; the CPU cost is one sim tick plus one buffer upload, independent of particle count.</li>
+<li><strong>The GPU does the transforms.</strong> Rotation, scaling, placement and projection happen in the vertex shader from instance attributes; no per-particle CPU math.</li>
+<li><strong>Shapes are SDFs.</strong> Signed-distance fields with <code>fwidth</code>-based AA stay crisp at any size and rotation — no textures to soften, no jaggies.</li>
+<li><strong>The struct is the buffer.</strong> GL attributes alias <code>PoxInstance</code> fields, so the upload is a memcpy with no staging or conversion.</li>
+<li><strong>The caller owns context, viewport, and clear.</strong> The renderer needs only a current GLES3 context; it never windows, and it never clears — which is exactly what lets it embed in a subsurface, a BYOC frame, or a compositor pass.</li>
+</ul>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

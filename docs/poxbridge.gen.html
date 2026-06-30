@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle — The poxbridge Streaming Protocol</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="poxicle--the-poxbridge-streaming-protocol">poxicle — The poxbridge Streaming Protocol</h1>
+
+<p>poxbridge is the cross-process channel that lets a particle <em>producer</em> (a Wayland client running its own sim, e.g. the Chiguiro terminal) stream ready-to-draw instances to a <em>receiver</em> that draws them on the producer&rsquo;s window — the <a href="kwin-effect.gen.html">KWin effect</a> or the <a href="gnome-extension.gen.html">GNOME extension</a>.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-why-a-bridge-exists">Why a bridge exists</a></li>
+<li><a href="#2-transport-one-shared-region-per-producer">Transport: one shared region per producer</a></li>
+<li><a href="#3-the-shared-region-header">The shared-region header</a></li>
+<li><a href="#4-the-seqlock">The seqlock</a></li>
+<li><a href="#5-the-d-bus-control-surface">The D-Bus control surface</a></li>
+<li><a href="#6-window-identity">Window identity</a></li>
+<li><a href="#7-idle-parking-and-waking">Idle parking and waking</a></li>
+<li><a href="#8-design-rules">Design rules</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-why-a-bridge-exists">1. Why a bridge exists</h2>
+
+<p>A compositor effect can draw on a client&rsquo;s window, but it <strong>cannot observe the client&rsquo;s internal triggers</strong> — a terminal bell, a process spawn or exit, an overscroll gesture. Those events live inside the application. Porting them into the effect&rsquo;s own simulation is impossible (the effect can&rsquo;t see them) and would throw away the producer&rsquo;s existing, fully-configured sim.</p>
+
+<p>So poxbridge inverts the split: the <strong>client sims and streams</strong> ready-to-draw <code>PoxInstance[]</code>, and the <strong>receiver only positions and draws</strong> them. The receiver applies none of its own rules to a streaming window — every tunable, colour and trigger has already been resolved by the producer before the instances exist. This is the path the <a href="build.gen.html">Chiguiro handoff</a> describes: Chiguiro keeps configuring particles in-app but renders through the compositor instead of an in-process overlay.</p>
+
+<p>The contract is defined entirely by one self-contained header, <code>include/poxbridge.h</code>. It is plain C with no dependency on <code>poxicle.h</code>, so a producer can copy it verbatim — Chiguiro&rsquo;s <code>KgxParticleInstance</code> is byte-identical to <code>PoxInstance</code>, so it maps the same body layout without linking poxicle at all.</p>
+
+<h2 id="2-transport-one-shared-region-per-producer">2. Transport: one shared region per producer</h2>
+
+<p>Each producer toplevel gets <strong>one POSIX shared region</strong> — a <code>memfd</code> the producer creates and hands to the receiver once, over D-Bus. The producer writes each frame&rsquo;s <code>PoxInstance[]</code> into the region&rsquo;s body and bumps a counter; the receiver polls that counter every compositor frame and copies the latest complete frame. There is <strong>no per-frame D-Bus traffic</strong> — only <code>Register</code> / <code>Unregister</code> (once each) and <code>Wake</code> (only on an idle→active edge).</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 920 360" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg    { fill: #1a1b26; }
+    .prod  { fill: #2a1f35; stroke: #bb9af7; stroke-width: 1.5; }
+    .recv  { fill: #16242b; stroke: #7dcfff; stroke-width: 1.5; }
+    .shm   { fill: #2a2438; stroke: #e0af68; stroke-width: 1.5; }
+    .box   { fill: #24283b; stroke: #3b4261; stroke-width: 1; }
+    .lbl   { fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm{ fill: #c0caf5; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut{ fill: #a9b1d6; font-size: 9px;  font-family: 'JetBrains Mono', monospace; }
+    .lbl-pur{ fill: #bb9af7; font-size: 12px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-cy{ fill: #7dcfff; font-size: 12px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-yel{ fill: #e0af68; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .ln    { stroke: #7dcfff; stroke-width: 1.5; fill: none; }
+    .dbus  { stroke: #bb9af7; stroke-width: 1.2; stroke-dasharray: 6,4; fill: none; }
+    .title { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+  </style>
+  <rect x="0" y="0" width="920" height="360" class="bg" rx="6"/>
+  <text x="460" y="26" text-anchor="middle" class="title">producer streams instances; receiver draws them</text>
+
+  <rect x="20" y="60" width="250" height="130" class="prod" rx="6"/>
+  <text x="40" y="82" class="lbl-pur">producer (e.g. Chiguiro)</text>
+  <text x="40" y="100" class="lbl-mut">runs its full sim + triggers</text>
+  <rect x="40" y="112" width="210" height="30" class="box" rx="6"/>
+  <text x="145" y="131" text-anchor="middle" class="lbl-sm">write PoxInstance[] each frame</text>
+  <rect x="40" y="150" width="210" height="30" class="box" rx="6"/>
+  <text x="145" y="169" text-anchor="middle" class="lbl-sm">bump seqlock (odd -> even)</text>
+
+  <rect x="335" y="60" width="250" height="180" class="shm" rx="6"/>
+  <text x="355" y="82" class="lbl-yel">memfd shared region</text>
+  <rect x="355" y="92" width="210" height="58" class="box" rx="6"/>
+  <text x="460" y="112" text-anchor="middle" class="lbl-sm">PoxBridgeHeader (32 B)</text>
+  <text x="460" y="128" text-anchor="middle" class="lbl-mut">magic, version, seq, count,</text>
+  <text x="460" y="141" text-anchor="middle" class="lbl-mut">capacity, inst_size, w, h</text>
+  <rect x="355" y="158" width="210" height="68" class="box" rx="6"/>
+  <text x="460" y="182" text-anchor="middle" class="lbl-sm">body: PoxInstance[capacity]</text>
+  <text x="460" y="200" text-anchor="middle" class="lbl-mut">~36 B each, 4-byte aligned</text>
+  <text x="460" y="214" text-anchor="middle" class="lbl-mut">offset = 32 + i * inst_size</text>
+
+  <rect x="650" y="60" width="250" height="130" class="recv" rx="6"/>
+  <text x="670" y="82" class="lbl-cy">receiver (KWin / GNOME)</text>
+  <text x="670" y="100" class="lbl-mut">polls seq every frame</text>
+  <rect x="670" y="112" width="210" height="30" class="box" rx="6"/>
+  <text x="775" y="131" text-anchor="middle" class="lbl-sm">copy latest complete frame</text>
+  <rect x="670" y="150" width="210" height="30" class="box" rx="6"/>
+  <text x="775" y="169" text-anchor="middle" class="lbl-sm">offset by window rect, draw</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="270" y1="127" x2="335" y2="127" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="585" y1="127" x2="650" y2="127" class="ln"/>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="145" y1="280" x2="775" y2="280" class="dbus"/>
+  <text x="460" y="274" text-anchor="middle" class="lbl-pur">D-Bus org.ninez.PoxicleBridge — Register / Unregister / Wake (control only)</text>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="145" y1="190" x2="145" y2="280" class="dbus"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="775" y1="190" x2="775" y2="280" class="dbus"/>
+  <text x="40" y="320" class="lbl-mut">Register hands over the memfd once; the per-frame path is shared memory only</text>
+</svg>
+</div>
+
+
+<h2 id="3-the-shared-region-header">3. The shared-region header</h2>
+
+<p>The region begins with a fixed 32-byte header at offset 0, followed immediately by the instance body. Every field is 32-bit so the layout is identical on both sides regardless of struct-packing rules.</p>
+
+<table>
+<thead>
+<tr>
+<th> Field (<code>uint32</code>) </th>
+<th> Meaning </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>magic</code> </td>
+<td> <code>POX_BRIDGE_MAGIC</code> = <code>0x31584F50</code> (<code>'POX1'</code>, little-endian) — rejects a stale, wrong, or zero-filled fd. </td>
+</tr>
+<tr>
+<td> <code>version</code> </td>
+<td> <code>POX_BRIDGE_VERSION</code> = <code>1</code>. </td>
+</tr>
+<tr>
+<td> <code>seq</code> </td>
+<td> The seqlock (see below) — written <strong>only</strong> by the producer. </td>
+</tr>
+<tr>
+<td> <code>count</code> </td>
+<td> Live <code>PoxInstance</code> count in the body this frame. </td>
+</tr>
+<tr>
+<td> <code>capacity</code> </td>
+<td> Instance slots the body can hold. </td>
+</tr>
+<tr>
+<td> <code>inst_size</code> </td>
+<td> <code>sizeof(PoxInstance)</code> — sanity-checked against the reader&rsquo;s. </td>
+</tr>
+<tr>
+<td> <code>width</code> / <code>height</code> </td>
+<td> Producer surface size, logical pixels. </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The header is 32 bytes (8 × <code>uint32</code>, 4-aligned), so the float-based, 4-byte-aligned <code>PoxInstance</code> body starts correctly aligned right after it. Two inline helpers compute layout: <code>pox_bridge_map_size(capacity, inst_size)</code> gives the total region size, and <code>pox_bridge_body_offset(i, inst_size)</code> gives instance <code>i</code>&rsquo;s byte offset. A receiver validates <code>magic</code>, <code>version</code>, <code>inst_size == sizeof(PoxInstance)</code>, and that the mapped region is at least <code>pox_bridge_map_size(...)</code> before trusting a single byte.</p>
+
+<h2 id="4-the-seqlock">4. The seqlock</h2>
+
+<p>Frames are published with a <strong>seqlock</strong> — a single producer-written counter that lets a lock-free reader detect torn or mid-write frames without ever blocking the producer. The rule on <code>seq</code>:</p>
+
+<ul>
+<li><strong>even and unchanged</strong> since the last read → no new frame.</li>
+<li><strong>odd</strong> → the producer is mid-write; skip this poll.</li>
+<li><strong>even and advanced</strong> → a new complete frame is in the body.</li>
+</ul>
+
+
+<p>The producer bumps <code>seq</code> to odd, writes <code>count</code> and the body, then bumps it to even with release ordering. The reader loads <code>seq</code> with acquire ordering, copies the body if it is even and advanced, then <strong>re-reads <code>seq</code> and retries</strong> if it moved during the copy — so a torn frame is never drawn. A handful of retries is plenty, since the producer writes at most once per frame. Both receivers implement exactly this loop: the KWin effect&rsquo;s <code>readStreamFrame</code> retries up to 4 times, and the binding&rsquo;s <code>read_stream_vertices</code> up to 8, each using <code>__atomic_load_n(..., __ATOMIC_ACQUIRE)</code>.</p>
+
+<h2 id="5-the-d-bus-control-surface">5. The D-Bus control surface</h2>
+
+<p>Control is a small D-Bus interface on the <strong>session bus</strong> — reachable from a normal Wayland client, since KWin effects and gnome-shell share the user session bus. The receiver owns the name; producers call its methods.</p>
+
+<table>
+<thead>
+<tr>
+<th> Constant </th>
+<th> Value </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>POX_BRIDGE_SERVICE</code> / <code>POX_BRIDGE_IFACE</code> </td>
+<td> <code>org.ninez.PoxicleBridge</code> </td>
+</tr>
+<tr>
+<td> <code>POX_BRIDGE_PATH</code> </td>
+<td> <code>/PoxicleBridge</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<table>
+<thead>
+<tr>
+<th> Method </th>
+<th> Role </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>Register(pid, shm)</code> </td>
+<td> Hands the <code>memfd</code> (a Unix fd) to the receiver, which <code>dup</code>s it, <code>fstat</code>s the true size, maps it read-only, and validates the header. Replaces any prior stream for that pid. </td>
+</tr>
+<tr>
+<td> <code>Unregister(pid)</code> </td>
+<td> Drops the stream — unmap, close, and repaint the band so the last particles composite away. </td>
+</tr>
+<tr>
+<td> <code>Wake(pid)</code> </td>
+<td> Un-parks the receiver&rsquo;s repaint loop on an idle→active edge (see below). </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Both receivers reject a stream whose header fails validation, and both bind it to a window only after registration. Because the name is owned best-effort, a second effect instance simply finds external mode unavailable while its other paths keep working. (On the GNOME side, <code>Register</code> must be handled asynchronously to reach the message&rsquo;s Unix fd list — the plain method path can&rsquo;t carry file descriptors.)</p>
+
+<h2 id="6-window-identity">6. Window identity</h2>
+
+<p>The hard part is matching a registered stream to the right on-screen window: a Wayland client can&rsquo;t obtain a compositor window handle, and the receiver can&rsquo;t obtain the client&rsquo;s <code>wl_surface</code> id. poxbridge uses a pragmatic match — <strong>the producer&rsquo;s PID</strong>. The producer registers with its <code>pid</code> (and writes its current window size into the header); the receiver binds the stream to the window whose process id matches.</p>
+
+<p>Registration can race window creation, so an unbound stream is re-resolved when new windows appear and when geometry changes. Single-window producers match on pid alone today; multi-window disambiguation by geometry is the documented next step. Because the producer can only send <strong>window-local</strong> coordinates (a Wayland client cannot read its absolute screen position), the receiver offsets every instance by the bound window&rsquo;s frame rectangle — exactly what it already does for its own sim.</p>
+
+<h2 id="7-idle-parking-and-waking">7. Idle parking and waking</h2>
+
+<p>The bridge preserves poxicle&rsquo;s idle-parking discipline across the process boundary. The receiver polls only the seqlock each frame; after a few consecutive empty frames (the KWin effect uses a grace of 4) it clears the stream&rsquo;s instances and stops requesting repaints, letting the compositor sleep. When the producer goes from idle to active it fires <code>Wake(pid)</code>, which resets the idle counter and requests a repaint so the receiver un-parks. This mirrors the in-process <code>pox_wl_wake()</code> of the <a href="wayland-backend.gen.html">Wayland backend</a>: the same &ldquo;park when quiet, wake on new work&rdquo; contract, just signalled over D-Bus instead of a function call.</p>
+
+<h2 id="8-design-rules">8. Design rules</h2>
+
+<ul>
+<li><strong>The producer sims, the receiver draws.</strong> Triggers internal to an application (a bell, a process exit) can only be seen by that application, so it streams resolved instances rather than asking the compositor to reproduce its sim.</li>
+<li><strong>Shared memory for frames, D-Bus for control.</strong> The per-frame path is a <code>memfd</code> and a seqlock; D-Bus carries only <code>Register</code> / <code>Unregister</code> / <code>Wake</code>. No per-frame IPC.</li>
+<li><strong>A self-contained, copyable header.</strong> <code>poxbridge.h</code> depends on nothing, so a producer with a byte-identical instance layout joins without linking poxicle.</li>
+<li><strong>Never draw a torn frame.</strong> The seqlock&rsquo;s odd/even discipline plus a re-read-and-retry reader guarantee the receiver only ever copies a complete frame.</li>
+<li><strong>Park across the boundary.</strong> Empty-frame grace plus a <code>Wake</code> edge keep the compositor asleep when the stream is quiet — the same idle contract as the in-process backend.</li>
+</ul>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

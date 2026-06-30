@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle Documentation</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  h1 { color: var(--accent); font-size: 1.6rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul { padding-left: 1.5rem; margin-bottom: 0.75rem; list-style: none; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; color: var(--cyan); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  code {
+    background: var(--surface); padding: 0.1rem 0.35rem;
+    border-radius: 3px; font-size: 0.8rem; color: var(--cyan);
+  }
+  .subtitle { color: var(--yellow); font-size: 0.95rem; margin-bottom: 1.5rem; }
+  .lead { color: var(--fg); font-size: 0.86rem; margin: 0.75rem 0 1rem; }
+  .doc-list { margin: 1rem 0; }
+  .doc-list li {
+    padding: 0.6rem 0.8rem; margin-bottom: 0.4rem;
+    background: var(--surface); border-radius: 5px;
+    border-left: 3px solid var(--accent);
+  }
+  .doc-list li:hover { border-left-color: var(--cyan); }
+  .doc-list .desc { color: var(--muted); font-size: 0.8rem; margin-top: 0.2rem; }
+  .badge {
+    display: inline-block; padding: 0.1rem 0.5rem; border-radius: 3px;
+    font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem;
+  }
+  .badge-core { background: var(--purple); color: var(--bg); }
+  .badge-comp { background: var(--cyan); color: var(--bg); }
+  .badge-sub { background: var(--orange); color: var(--bg); }
+  .badge-ops { background: var(--green); color: var(--bg); }
+  .stats { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0 2rem; }
+  .stat-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 0.7rem 1.1rem; min-width: 120px;
+  }
+  .stat-val { color: var(--green); font-size: 1.3rem; font-weight: 700; }
+  .stat-label { color: var(--muted); font-size: 0.72rem; }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+
+<h1>poxicle Documentation</h1>
+<p class="subtitle">Design and technical reference for poxicle &mdash; a toolkit- and desktop-agnostic edge-particle engine for Linux, with its own GPU renderer. Last updated 2026-06-29.</p>
+
+<p class="lead">
+  poxicle draws fast, high-quality animated effects around the <strong>edges of a surface</strong> &mdash;
+  bursts, tails, pulses, beams, ambient shimmer. The reusable core is <strong>pure C with zero
+  dependencies</strong>: it simulates a particle stream and emits a flat <code>PoxInstance[]</code>, which a
+  GLES3 renderer draws in <strong>one instanced call</strong> with shapes as signed-distance fields. Everything
+  environment-specific &mdash; how a surface is created and hosted &mdash; is an opt-in backend you can ignore,
+  so the same engine drives a Wayland subsurface overlay, a KWin Plasma&nbsp;6 compositor effect, a GNOME Shell
+  extension, and a terminal. These pages document each part from its real implementation.
+</p>
+
+<div class="stats">
+  <div class="stat-box"><div class="stat-val">1</div><div class="stat-label">draw call / frame</div></div>
+  <div class="stat-box"><div class="stat-val">19</div><div class="stat-label">presets</div></div>
+  <div class="stat-box"><div class="stat-val">25</div><div class="stat-label">palettes</div></div>
+  <div class="stat-box"><div class="stat-val">4</div><div class="stat-label">engine layers</div></div>
+  <div class="stat-box"><div class="stat-val">3</div><div class="stat-label">desktop integrations</div></div>
+</div>
+
+<hr>
+
+<h2>Architecture &amp; Core</h2>
+<ul class="doc-list">
+  <li>
+    <a href="architecture.gen.html">Architecture Overview</a>
+    <span class="badge badge-core">CORE</span>
+    <div class="desc">The layer model, the one flat record that ties it together, the backends, the consumers, and the single config file.</div>
+  </li>
+  <li>
+    <a href="simulation-core.gen.html">The Simulation Core</a>
+    <span class="badge badge-core">CORE</span>
+    <div class="desc">The pure-C engine: perimeter math, tunables and envelopes, bursts, the geometric kinds, the tick loop, and seeded clocks.</div>
+  </li>
+  <li>
+    <a href="renderer.gen.html">The GLES Renderer</a>
+    <span class="badge badge-core">CORE</span>
+    <div class="desc">One <code>glDrawArraysInstanced</code> per frame, shapes as signed-distance fields, the vertex/fragment shaders, and premultiplied blending.</div>
+  </li>
+  <li>
+    <a href="poxbridge.gen.html">The poxbridge Protocol</a>
+    <span class="badge badge-core">CORE</span>
+    <div class="desc">The cross-process producer/receiver channel: a memfd shared region, the seqlock, and the <code>org.ninez.PoxicleBridge</code> control surface.</div>
+  </li>
+</ul>
+
+<h2>Backends &amp; Bindings</h2>
+<ul class="doc-list">
+  <li>
+    <a href="wayland-backend.gen.html">The Wayland Subsurface Backend</a>
+    <span class="badge badge-comp">COMPONENT</span>
+    <div class="desc">A transparent, click-through subsurface over a window the app owns, with its own EGL context and a self-parking frame loop &mdash; plus BYOC.</div>
+  </li>
+  <li>
+    <a href="gobject-binding.gen.html">The GObject Binding</a>
+    <span class="badge badge-comp">COMPONENT</span>
+    <div class="desc"><code>gi://Poxicle</code>: the two tick outputs, GPU-ready triangulation, the in-C config resolver, and the stream receiver.</div>
+  </li>
+</ul>
+
+<h2>Configuration &amp; Integrations</h2>
+<ul class="doc-list">
+  <li>
+    <a href="configuration.gen.html">Configuration &amp; Presets</a>
+    <span class="badge badge-sub">SUBSYSTEM</span>
+    <div class="desc">The one DE-neutral config file, the preset and palette catalogues, per-app rules, and the palette precedence both renderers share.</div>
+  </li>
+  <li>
+    <a href="kwin-effect.gen.html">The KWin Plasma 6 Effect</a>
+    <span class="badge badge-sub">SUBSYSTEM</span>
+    <div class="desc">The 6.7 Effect-API port, the per-window paint pipeline, ring-only repaint, the un-minimize grace, and the bridge receiver.</div>
+  </li>
+  <li>
+    <a href="gnome-extension.gen.html">The GNOME Shell Extension</a>
+    <span class="badge badge-sub">SUBSYSTEM</span>
+    <div class="desc">Driving the same engine in gjs, drawing the vertex blob with a Cogl actor, the panel ring, and minimize gating.</div>
+  </li>
+  <li>
+    <a href="configurator.gen.html">The GTK4 Configurator</a>
+    <span class="badge badge-sub">SUBSYSTEM</span>
+    <div class="desc">The <code>poxicle-config</code> app: the Presets / Apps / Preferences pages, the rule editor, and the custom cells.</div>
+  </li>
+</ul>
+
+<h2>Build &amp; Operations</h2>
+<ul class="doc-list">
+  <li>
+    <a href="build.gen.html">Build, Install &amp; Packaging</a>
+    <span class="badge badge-ops">OPS</span>
+    <div class="desc">The Meson engine and demos, the GObject typelib, the CMake/ECM KWin build, the install scripts, and the sanitizer setup.</div>
+  </li>
+</ul>
+
+<hr>
+<p style="color: var(--muted); font-size: 0.75rem; margin-top: 2rem;">
+  poxicle by Jordan Johnston &mdash; <a href="https://github.com/nine7nine/Poxicle">github.com/nine7nine/Poxicle</a>
+  <br>A standalone, GPU-rendered edge-particle engine &mdash; a clean reimplementation of the
+  <a href="https://github.com/nine7nine/Chiguiro">Chiguiro</a> terminal's edge engine. LGPL-3.0-or-later | 2026-06-29
+</p>
+
+<script>hljs.highlightAll();</script>
+</body></html>

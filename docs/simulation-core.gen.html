@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>poxicle — The Simulation Core</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="poxicle--the-simulation-core">poxicle — The Simulation Core</h1>
+
+<p>The simulation core is <code>src/poxicle.c</code> behind <code>include/poxicle.h</code>: a toolkit-, GL- and Wayland-free engine that advances a particle stream around the edges of a surface and emits a flat <code>PoxInstance[]</code> for any renderer to draw.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-what-the-core-is">What the core is</a></li>
+<li><a href="#2-value-types-the-renderer-agnostic-hand-off">Value types: the renderer-agnostic hand-off</a></li>
+<li><a href="#3-the-surface-and-its-perimeter">The surface and its perimeter</a></li>
+<li><a href="#4-tunables-and-envelopes">Tunables and envelopes</a></li>
+<li><a href="#5-emission-models-bursts-geometric-kinds-overscroll">Emission models: bursts, geometric kinds, overscroll</a></li>
+<li><a href="#6-the-tick-loop">The tick loop</a></li>
+<li><a href="#7-per-engine-clocks-and-idle-parking">Per-engine clocks and idle parking</a></li>
+<li><a href="#8-design-rules">Design rules</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-what-the-core-is">1. What the core is</h2>
+
+<p>poxicle&rsquo;s core is a <strong>pure-C simulation</strong> with zero dependencies — no GL, no Wayland, no toolkit, not even glib. It is a clean reimplementation of the math in the Chiguiro terminal&rsquo;s edge engine (<code>kgx-edge-draw.c</code> / <code>kgx-edge-burst.c</code> / <code>kgx-particle.c</code>), collapsed to a <strong>single full-surface emitter</strong>: there is no per-side widget split, so every block is emitted directly into one flat array.</p>
+
+<p>The contract is small. A host sizes the engine to a surface, selects a look, and calls <code>pox_engine_tick(e, dt, out, cap)</code> once per frame; the engine writes that frame&rsquo;s particles into <code>out</code> and returns the count. Everything downstream — uploading the array, drawing it, hosting a window — is a separate concern handled by a <a href="renderer.gen.html">renderer</a> and a <a href="wayland-backend.gen.html">backend</a>. Time is supplied entirely by the host as <code>dt</code> (the frame delta in seconds); all scheduling inside the engine is in engine-local seconds, so the core never reads a clock.</p>
+
+<pre><code class="language-c code-block">
+PoxEngine *e = pox_engine_new();
+pox_engine_set_surface(e, w, h, scale);
+pox_engine_set_preset_look(e);          /* tunables + kind + palette */
+
+PoxInstance buf[4096];
+size_t n = pox_engine_tick(e, dt, buf, 4096);
+/* hand buf[0..n) to a renderer */
+</code></pre>
+
+
+<p>The whole public surface is the <code>pox_engine_*</code> family in <code>poxicle.h</code>; the <code>PoxEngine</code> struct itself is opaque.</p>
+
+<h2 id="2-value-types-the-renderer-agnostic-hand-off">2. Value types: the renderer-agnostic hand-off</h2>
+
+<p>Every type that crosses the engine boundary is plain data with no toolkit or GL coupling, so the same records feed a GLES renderer, a Cogl pipeline, or a cross-process stream unchanged.</p>
+
+<table>
+<thead>
+<tr>
+<th> Type </th>
+<th> Shape </th>
+<th> Notes </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>PoxColor</code> </td>
+<td> <code>float r, g, b, a</code> </td>
+<td> <strong>Straight</strong> (non-premultiplied) RGBA, 0..1. <code>a</code> carries the per-particle alpha (tail fade, envelope). The renderer premultiplies. </td>
+</tr>
+<tr>
+<td> <code>PoxShape</code> </td>
+<td> enum </td>
+<td> <code>SQUARE</code>, <code>CIRCLE</code>, <code>DIAMOND</code>, <code>TRIANGLE</code>. </td>
+</tr>
+<tr>
+<td> <code>PoxInstance</code> </td>
+<td> <code>x, y, size, angle, shape, color</code> </td>
+<td> One particle. <code>(x, y)</code> is the <strong>top-left</strong> of a <code>size × size</code> box in surface pixels; <code>angle</code> is degrees clockwise and only meaningful for <code>TRIANGLE</code>. </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><code>PoxInstance</code> is the single hand-off record. It is laid out so a GL backend can point vertex attributes straight at the struct fields (see <a href="renderer.gen.html">The GLES Renderer</a>) and so a producer in another process can stream byte-identical records (see <a href="poxbridge.gen.html">The poxbridge Protocol</a>). At roughly 36 bytes per instance, a full frame of a few hundred particles is a few kilobytes.</p>
+
+<h2 id="3-the-surface-and-its-perimeter">3. The surface and its perimeter</h2>
+
+<p>The engine frames a rectangle. <code>pox_engine_set_surface(e, width, height, scale)</code> records the pixel size and an integer HiDPI scale, and computes the <strong>perimeter</strong> <code>perim = 2·(width + height)</code>. Every emission is expressed as a position along that perimeter.</p>
+
+<p>A perimeter position <code>d</code> runs in surface pixels, clockwise from the top-left corner. <code>block_at()</code> maps <code>d</code> to a block&rsquo;s top-left <code>(px, py)</code> hugging the inside edge, plus the facing angle a triangle should point:</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg    { fill: #1a1b26; }
+    .surf  { fill: #1f2535; stroke: #565f89; stroke-width: 1; }
+    .edge  { fill: #24283b; stroke: #7aa2f7; stroke-width: 1.5; }
+    .lbl   { fill: #c0caf5; font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm{ fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut{ fill: #a9b1d6; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-cy{ fill: #7dcfff; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-yel{ fill: #e0af68; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .title { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .corner{ fill: #bb9af7; }
+  </style>
+  <rect x="0" y="0" width="900" height="400" class="bg" rx="6"/>
+  <text x="450" y="28" text-anchor="middle" class="title">perimeter parameterization (clockwise from top-left)</text>
+
+  <rect x="300" y="70" width="300" height="240" class="surf" rx="6"/>
+  <rect x="300" y="70" width="300" height="16" class="edge" rx="6"/>
+  <rect x="584" y="70" width="16" height="240" class="edge" rx="6"/>
+  <rect x="300" y="294" width="300" height="16" class="edge" rx="6"/>
+  <rect x="300" y="70" width="16" height="240" class="edge" rx="6"/>
+
+  <circle cx="300" cy="70" r="5" class="corner"/>
+  <circle cx="600" cy="70" r="5" class="corner"/>
+  <circle cx="600" cy="310" r="5" class="corner"/>
+  <circle cx="300" cy="310" r="5" class="corner"/>
+
+  <text x="296" y="64" text-anchor="end" class="lbl-yel">d = 0</text>
+  <text x="450" y="62" text-anchor="middle" class="lbl-cy">top:    0 .. w</text>
+  <text x="612" y="195" class="lbl-cy">right:  w .. w+h</text>
+  <text x="450" y="332" text-anchor="middle" class="lbl-cy">bottom: w+h .. 2w+h</text>
+  <text x="288" y="195" text-anchor="end" class="lbl-cy">left: 2w+h .. 2(w+h)</text>
+
+  <text x="450" y="200" text-anchor="middle" class="lbl-mut">w x h surface</text>
+  <text x="450" y="218" text-anchor="middle" class="lbl-mut">perim = 2(w + h)</text>
+
+  <text x="40"  y="360" class="lbl-sm">block_at(w, h, d) -> top-left (px, py) + triangle facing angle</text>
+  <text x="40"  y="380" class="lbl-mut">each block is clamped fully inside the rect, so a corner turn never pokes out</text>
+</svg>
+</div>
+
+
+<p>Two surface modifiers reshape the ring without changing this scheme:</p>
+
+<ul>
+<li><strong>Corner rounding</strong> — <code>pox_engine_set_corner_radius(e, top, bottom)</code> rounds the two top corners by <code>top</code> pixels and the two bottom corners by <code>bottom</code>, so a host can match KDE (top corners only) or GNOME (all four). Within a radius of a corner, <code>block_at_rounded()</code> follows a <strong>quadratic Bézier</strong> from the straight run, through the sharp corner point, to the next straight run. The curve&rsquo;s endpoints coincide with the square mapping, so the straight edges are untouched and there is no seam. Each radius is capped at half the shorter side. <code>0</code> (the default) is bit-for-bit the historical square path.</li>
+<li><strong>Edge mask</strong> — <code>pox_engine_set_edge_mask(e, top, right, bottom, left)</code> restricts the ring to a subset of edges; each block is classified from its raw (pre-rounding) position and dropped if it lands on a disabled edge. The default <code>0xF</code> (all four) costs nothing. This exists for surfaces docked to a screen border — a desktop panel — where the edges flush against the border should carry no particles and only the interior-facing edge(s) get the ring. The host decides which edges face the interior.</li>
+</ul>
+
+
+<h2 id="4-tunables-and-envelopes">4. Tunables and envelopes</h2>
+
+<p>A look is a <code>PoxTunables</code> struct, ported field-for-field from the edge engine. It governs the geometry and timing of a stream:</p>
+
+<table>
+<thead>
+<tr>
+<th> Field </th>
+<th> Meaning </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>speed</code> </td>
+<td> Speed multiplier; also scales loop/burst durations. </td>
+</tr>
+<tr>
+<td> <code>thickness</code> </td>
+<td> Block size in pixels. </td>
+</tr>
+<tr>
+<td> <code>tail_length</code> </td>
+<td> Tail length multiplier (over a 200 px base segment). </td>
+</tr>
+<tr>
+<td> <code>pulse_depth</code> / <code>pulse_speed</code> </td>
+<td> Shimmer intensity (0..1) and wave speed along a tail. </td>
+</tr>
+<tr>
+<td> <code>env_attack</code> / <code>env_release</code> </td>
+<td> Grow-in and fade-out fractions (each 0..0.5) of the life cycle. </td>
+</tr>
+<tr>
+<td> <code>env_curve</code> </td>
+<td> <code>1</code> concave (√), <code>2</code> linear, <code>3</code> convex (²). </td>
+</tr>
+<tr>
+<td> <code>release_mode</code> </td>
+<td> <code>UNIFORM</code>, <code>RETRACT</code>, <code>SPREAD</code>, <code>GROW</code>, <code>ALL</code> — how the tail dissolves. </td>
+</tr>
+<tr>
+<td> <code>shape</code> </td>
+<td> The <code>PoxShape</code> drawn. </td>
+</tr>
+<tr>
+<td> <code>gap</code> </td>
+<td> <code>0</code> solid run, <code>1</code> gapped into distinct particles. </td>
+</tr>
+<tr>
+<td> <code>thk_attack</code> / <code>thk_release</code> / <code>thk_curve</code> / <code>thk_release_mode</code> </td>
+<td> A second envelope on <strong>thickness</strong>, independent of the alpha envelope. </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><code>pox_tunables_default()</code> fills sensible defaults — <code>speed 1.0</code>, <code>thickness 10</code>, triangle shape, a 0.12/0.20 attack/release — matching the engine&rsquo;s ambient look. <code>pox_envelope(t, attack, release, curve)</code> evaluates the shared attack/sustain/release curve used by every emission path, so alpha, tail length, thickness and spread all breathe through one function.</p>
+
+<p>A host rarely fills tunables by hand. The <strong>preset catalogue</strong> is the single source of truth for seed tunables and the name→emission-kind mapping; see <a href="configuration.gen.html">Configuration &amp; Presets</a> for the full list and the <code>pox_preset_*</code> / <code>pox_palette_*</code> lookups.</p>
+
+<h2 id="5-emission-models-bursts-geometric-kinds-overscroll">5. Emission models: bursts, geometric kinds, overscroll</h2>
+
+<p>The <code>PoxKind</code> selected by <code>pox_engine_set_kind(e, kind, reverse, color)</code> chooses one of three internal emission machines. Selecting a kind also toggles ambient mode to match, so callers need not manage it separately.</p>
+
+<p><strong>Bursts (the auto-fire fan).</strong> <code>AMBIENT</code> and <code>FIREWORKS</code> continuously auto-fire bursts from random perimeter points — the default &ldquo;alive&rdquo; look. Each <code>PoxBurst</code> is a short-lived event: two trailing segments spread out from a head point and fade over an ease-out-cubic timeline (<code>0.8 / speed</code> seconds). <code>ambient_schedule()</code> staggers the fan with randomized delays scaled by speed; <code>FIREWORKS</code> runs a denser, tighter six-slot fan. When the engine is reversed, the two segments <em>implode</em> — they start spread apart and converge to the head, shrinking as they meet. A host can also fire a one-off burst at any perimeter position with <code>pox_engine_burst(e, pos, color)</code>, which uses the manual slots above the ambient fan (the pool holds <code>POX_MAX_BURSTS = 8</code> total).</p>
+
+<p><strong>Geometric kinds (the looping timeline).</strong> The eighteen geometric presets — <code>CORNERS</code>, <code>PULSE_OUT</code>, <code>ROTATE</code>, <code>PING_PONG</code>, <code>LASER</code>, <code>TRACER</code>, <code>COMET</code>, <code>SPINNER</code>, <code>RIPPLE</code>, <code>CHARGE</code>, <code>SPREAD</code>, <code>RADAR</code>, <code>COUNTERSPIN</code>, <code>SNAKE</code>, <code>BREATHE</code>, <code>STROBE</code>, <code>FIREFLIES</code> — run a single looping <code>proc_*</code> timeline. Each snapshots the current tunables at <code>set_kind</code> time and derives its loop duration from tunable speed (<code>proc_duration_ms</code>, e.g. <code>ROTATE</code> 3.5 s, <code>LASER</code> 1.4 s, <code>COMET</code> 6 s). <code>tick()</code> re-arms the timeline on completion so the motion is continuous, stepping a per-cycle palette colour each lap. The <code>reverse</code> argument is tri-state: <code>0</code> forward, <code>1</code> reverse, <code>2</code> loop (alternate direction every cycle). Constant-speed motions run linear; the rest ease-out-cubic. Kinds like <code>BREATHE</code>, <code>STROBE</code> and the <code>RADAR</code> backdrop use <code>emit_ring()</code> — a uniform-alpha ring of single-block segments around the whole perimeter.</p>
+
+<p><strong>Overscroll beams.</strong> A host can drive an edge &ldquo;overscroll&rdquo; beam — a corner burst running along two adjacent edges — either frame-by-frame with <code>pox_engine_overscroll(e, edge, progress, color)</code>, or fire-and-forget with <code>pox_engine_fire_overscroll()</code>, which runs the progress timeline internally over 0.6 s. The <code>SCROLL</code> kind simply keeps re-firing this beam in a loop, stepping the palette each time.</p>
+
+<p>Across all three machines, colour comes from the active <strong>palette</strong>: ambient/fireworks sample a fresh colour per burst, geometric kinds sample deterministically per segment index (multi-arm kinds) or per loop cycle (single-arm kinds), so the look is stable frame-to-frame rather than strobing. A palette is chosen with <code>pox_engine_set_palette(e, id)</code> or supplied directly with <code>pox_engine_set_palette_colors()</code>.</p>
+
+<h2 id="6-the-tick-loop">6. The tick loop</h2>
+
+<p><code>pox_engine_tick(e, dt, out, cap)</code> is the whole per-frame engine. In order, it:</p>
+
+<ol>
+<li>Advances engine-local time by <code>dt</code>.</li>
+<li>Fires any scheduled ambient work whose due time has passed, and reschedules the fan.</li>
+<li>Advances and emits every active burst (the full 8-slot pool).</li>
+<li>Advances the geometric-kind timeline, re-arming it (and stepping the palette / flipping direction) when a loop completes, then emits the current kind.</li>
+<li>Re-fires the <code>SCROLL</code> beam if that kind is active and idle.</li>
+<li>Advances any self-animating overscroll timeline and emits the beam.</li>
+</ol>
+
+
+<p>It returns the number of instances written, never more than <code>cap</code>; excess is simply dropped under the draw budget. The emit helpers (<code>emit_segment</code>, <code>emit_burst</code>, <code>emit_kind</code>, <code>emit_ring</code>, <code>emit_overscroll</code>) all funnel through <code>emit_segment</code>, which walks a trailing run of blocks, applies the alpha and thickness envelopes, the per-block pulse shimmer, the gap/spread spacing, and the edge-mask cull, then writes each block&rsquo;s <code>PoxInstance</code>. The engine carries its own tiny xorshift PRNG so it needs no external randomness source.</p>
+
+<h2 id="7-per-engine-clocks-and-idle-parking">7. Per-engine clocks and idle parking</h2>
+
+<p>Two properties make the core safe to run in many independent instances and cheap when nothing moves.</p>
+
+<p><strong>Independent clocks.</strong> <code>pox_engine_set_seed(e, seed)</code> gives an engine its own random phase and RNG stream. The seed is mixed internally (so a simple per-object counter is fine), and the resulting phase back-dates loop starts and staggers the first auto-burst. Two engines created in the same frame — say a desktop panel ring and the active-window ring — then animate on their own clocks instead of marching in lockstep. Not calling it leaves the engine on the legacy fixed seed and zero phase, unchanged. Every integration (<a href="kwin-effect.gen.html">KWin</a>, <a href="gnome-extension.gen.html">GNOME</a>) seeds each engine from a monotonic counter for exactly this reason.</p>
+
+<p><strong>Idle parking.</strong> <code>pox_engine_active(e)</code> returns nonzero while <em>anything</em> is still animating — an active burst, a looping geometric kind, a live overscroll, or pending ambient work. A host uses this to park its frame loop (and let the compositor stop waking it) when the ring goes quiet, and to restart only when new work arrives. This single predicate is what lets both the Wayland backend and the compositor effects sleep the GPU between flourishes.</p>
+
+<h2 id="8-design-rules">8. Design rules</h2>
+
+<ul>
+<li><strong>Zero dependencies in the core.</strong> No GL, Wayland, toolkit, or glib — the simulation is portable C and embeddable anywhere a host can call a function once per frame.</li>
+<li><strong>The host owns time.</strong> The engine never reads a clock; <code>dt</code> is supplied. That keeps it deterministic, testable, and trivially driveable from a compositor&rsquo;s present timestamps or a frame callback.</li>
+<li><strong>One flat array out.</strong> The sim&rsquo;s only output is <code>PoxInstance[]</code>. It knows nothing about how those particles are drawn or hosted, which is exactly why the same core drives a GLES renderer, a Cogl pipeline, and a cross-process stream.</li>
+<li><strong>Every look reduces to data.</strong> A preset is tunables + a kind + a palette — all plain values. There is no per-look code path outside the engine, so the configurator and every backend share one implementation.</li>
+<li><strong>Independent and idle-aware.</strong> Seeded clocks let many rings coexist without visual lockstep; <code>pox_engine_active()</code> lets the host sleep when idle.</li>
+</ul>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>
